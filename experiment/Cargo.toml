@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["conformance", "layered", "uniform"]
+
+# Två implementationer av samma todo-backend, en skiktad och en enhetlig, som båda
+# måste klara samma konformanssvit. Skillnaden mellan dem ska vara strukturen och
+# ingenting annat — det är den som mäts.
+
+[workspace.dependencies]
+conformance = { path = "conformance" }
+rusqlite = { version = "0.37", default-features = false, features = ["bundled"] }
