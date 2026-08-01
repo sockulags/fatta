@@ -1,4 +1,4 @@
-"""Tester för städkön. Signalerna testas var för sig och i kombination."""
+"""Tests for the cleanup queue. Signals are tested separately and in combination."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def make_map(tests: list[TestCase]) -> TestMap:
 
 
 def graph_with_internal() -> Graph:
-    """entry anropar helper — helper är alltså intern, entry är det inte."""
+    """entry calls helper — so helper is internal, entry is not."""
     return Graph(name="g", items={
         "e": Item(id="e", name="entry", kind=FUNCTION, contract="", body="x",
                   calls=("h",), file="app/route.ts"),
@@ -40,7 +40,7 @@ def test_kast_flaggas_som_fabrikation() -> None:
 
 
 def test_kast_utan_produktionsmal_flaggas_inte() -> None:
-    """Ett kast i ett test som inte rör produktionskod bevisar ingenting."""
+    """A cast in a test that touches no production code proves nothing."""
     tm = make_map([make_test(targets=(), casts=({"line": 5, "text": "x as any"},))])
 
     assert analyze(tm) == []
@@ -59,7 +59,7 @@ def test_internal_symbols_ur_grafen() -> None:
 
 
 def test_vattenlinjen_flaggar_inte_ensam() -> None:
-    """Att enhetstesta interna funktioner är normalt — signalen är kontext, inte dom."""
+    """Unit-testing internals is normal — the signal is context, not a verdict."""
     tm = make_map([make_test()])
 
     assert analyze(tm, graph_with_internal()) == []
@@ -74,8 +74,8 @@ def test_vattenlinjen_laggs_till_nar_annan_signal_slagit() -> None:
 
 
 def test_literalspik_kraver_intern_maltavla() -> None:
-    """En lång literal mot ett entrypoint är ofta ett medvetet kontrakt; samma spik
-    på en intern funktion är ett kopietest."""
+    """A long literal against an entry point is often a deliberate contract; the same
+    pin on an internal function is a copy test."""
     assertion = ({"line": 9, "text": "expect(x).toBe('ett långt exakt felmeddelande här')"},)
     mot_intern = make_test(assertions=assertion)
     mot_entry = make_test(
@@ -119,7 +119,7 @@ def test_render_summerar_kategorier() -> None:
 
     text = render(analyze(tm))
 
-    assert "fabricated" in text and "flaggade" in text
+    assert "fabricated" in text and "flagged" in text
 
 
 SEP = chr(1)
@@ -140,7 +140,7 @@ def test_gitlog_parsas_till_filmangder() -> None:
 
 
 def test_ensamchurn_raknar_lagningar_utan_malandring() -> None:
-    """Två commits rörde bara testet; skapelsen (äldsta) räknas bort ur ensam-churnen."""
+    """Two commits touched only the test; creation (oldest) is excluded from test-only churn."""
     from unittest.mock import patch
     from types import SimpleNamespace
     from fatta.testhealth import measure_churn
@@ -150,7 +150,7 @@ def test_ensamchurn_raknar_lagningar_utan_malandring() -> None:
                              targets=({"name": "f", "file": "lib/x.ts", "line": 1},))])
     def fake_run(cmd, **_kwargs):
         if "rev-parse" in cmd:
-            return SimpleNamespace(returncode=0, stdout="")  # repo-roten: inget prefix
+            return SimpleNamespace(returncode=0, stdout="")  # repo root: no prefix
         return SimpleNamespace(returncode=0, stdout=GITLOG)
 
     with patch("fatta.testhealth.subprocess.run", side_effect=fake_run):
@@ -165,10 +165,10 @@ def test_churnrapporten_korsar_med_fabrikationssignaler() -> None:
                                            casts=({"line": 1, "text": "as any"},))]))
     text = render_churn({"x.test.ts": Churn(total=5, test_only=3)}, findings)
 
-    assert "x.test.ts" in text and "fabrikationssignaler" in text
+    assert "x.test.ts" in text and "fabrication signals" in text
 
 
 def test_lag_churn_rapporteras_inte() -> None:
     text = render_churn({"x.test.ts": Churn(total=3, test_only=1)}, [])
 
-    assert "Ingen testfil" in text
+    assert "No test file" in text

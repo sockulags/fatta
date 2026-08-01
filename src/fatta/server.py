@@ -1,13 +1,13 @@
-"""MCP-server över förståelseindexet.
+"""MCP server over the comprehension index.
 
-Skillnaden mot vanlig kodsökning är att svaren är **avgränsade**. En sökning ger relevant
-text utan botten — du vet aldrig när du sett tillräckligt. Det här ger en sluten mängd:
-det här är allt, du kan sluta läsa.
+What separates this from ordinary code search is that the answers are **bounded**. A
+search returns relevant text with no bottom — you never know when you have seen enough.
+This returns a closed set: this is everything, you can stop reading.
 
-Varje uppgift bär sin härkomst. I den här versionen är allt `derived`, alltså härlett ur
-koden och sant per konstruktion. Påstådda fakta som ingen kontrollerar finns med flit inte
-med — en uppgift som får en agent att sluta läsa måste vara sann, annars är den värre än
-ingen uppgift alls.
+Every fact carries its provenance. In this version everything is `derived`, i.e. extracted
+from the code and true by construction. Asserted facts nobody checks are deliberately
+absent — a fact that makes an agent stop reading must be true, or it is worse than no
+fact at all.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ PROTOCOL_VERSION = "2025-06-18"
 
 @dataclass
 class Answer:
-    """Ett avgränsat svar: mängden, kostnaden, och vad som inte kunde tas med."""
+    """A bounded answer: the set, the cost, and what could not be included."""
 
     symbol: str
     payload: dict[str, Any]
@@ -35,7 +35,7 @@ class Answer:
 
 
 def resolve(graph: Graph, symbol: str) -> list[str]:
-    """Alla lokala funktioner som heter `symbol`. Namn är inte unika."""
+    """All local functions named `symbol`. Names are not unique."""
     return [i for i in graph.local_functions() if graph.name_of(i) == symbol]
 
 
@@ -52,13 +52,13 @@ def describe(graph: Graph, item_id: str) -> dict[str, Any]:
         contract = graph.contract_text(dep, used)
         entry = graph.get(dep)
         if not contract.strip():
-            # Externt paket vi inte har någon graf för. Att tiga om det vore att
-            # utge mängden för sluten när den inte är det.
+            # An external package we have no graph for. Staying silent would pass the
+            # set off as closed when it is not.
             unavailable.append(
                 {
                     "name": graph.name_of(dep),
                     "from": entry.external if entry else "?",
-                    "why": "ingen graf för det paketet",
+                    "why": "no graph for that package",
                 }
             )
             continue
@@ -86,10 +86,10 @@ def describe(graph: Graph, item_id: str) -> dict[str, Any]:
         "unavailable": unavailable,
         "bounded": not unavailable,
         "note": (
-            "Mängden är sluten: har du läst allt under must_know behöver du inte gå "
-            "djupare."
+            "The set is closed: once you have read everything under must_know you need "
+            "not go deeper."
             if not unavailable
-            else "Mängden är inte sluten — se unavailable."
+            else "The set is not closed — see unavailable."
         ),
     }
 
@@ -97,7 +97,7 @@ def describe(graph: Graph, item_id: str) -> dict[str, Any]:
 def what_must_i_know(graph: Graph, symbol: str) -> Answer:
     matches = resolve(graph, symbol)
     if not matches:
-        return Answer(symbol, {"error": f"hittade ingen funktion {symbol!r}"})
+        return Answer(symbol, {"error": f"no function named {symbol!r}"})
     if len(matches) == 1:
         return Answer(symbol, describe(graph, matches[0]))
     return Answer(
@@ -111,10 +111,10 @@ def what_must_i_know(graph: Graph, symbol: str) -> Answer:
 
 
 def doc_leverage(graph: Graph, limit: int = 20) -> Answer:
-    """Var ett pålitligt kontrakt skulle spara mest.
+    """Where a trustworthy contract would save the most.
 
-    En doc djupt ner i trädet sparar nästan ingenting — man var tvungen att gå dit för
-    att läsa den. Värdet av en doc är storleken på det subträd den beskär."""
+    A doc deep down the tree saves almost nothing — you had to walk there to read it. The
+    value of a doc is the size of the subtree it prunes."""
     scored = []
     for item_id, item in graph.items.items():
         if item.external is not None:
@@ -133,12 +133,12 @@ def doc_leverage(graph: Graph, limit: int = 20) -> Answer:
 
 
 def which_tests_pin(graph: Graph, tmap, symbol: str, file_hint: str | None) -> Answer:
-    """Testerna som spikar en symbols beteende — direkt eller genom anropskedjan.
+    """The tests pinning a symbol's behavior — directly or through the call chain.
 
-    Det här är svaret på det A/B/C-mätningen visade: specifikationen bor i testerna.
-    Läses de innan man ändrar är man inte längre hänvisad till att gissa literaler."""
+    This is the answer to what the A/B/C experiment showed: the specification lives in
+    the tests. Read them before changing and you are no longer left guessing literals."""
     if tmap is None:
-        return Answer(symbol, {"error": "ingen testkarta laddad — bygg med: fatta testmap"})
+        return Answer(symbol, {"error": "no test map loaded — build one with: fatta testmap"})
     direct = tmap.pinning(symbol, file_hint)
     files = tmap.judge_files(symbol, file_hint)
     target_file = None
@@ -165,17 +165,17 @@ def which_tests_pin(graph: Graph, tmap, symbol: str, file_hint: str | None) -> A
                 for t in direct[:10]
             ],
             "note": (
-                "Tom lista betyder att beteendet är ospecificerat — att ändra det "
-                "bryter inget test, vilket är dess egen varning."
+                "An empty list means the behavior is unspecified — changing it breaks "
+                "no test, which is its own warning."
                 if not direct and not via
-                else "Läs read_these_first innan du ändrar symbolen."
+                else "Read read_these_first before changing the symbol."
             ),
         },
     )
 
 
 def list_symbols(graph: Graph) -> Answer:
-    """Alla lokala funktioner — navigationsytan för både GUI och agent."""
+    """All local functions — the navigation surface for both GUI and agent."""
     rows = sorted(
         (
             {"name": item.name, "file": item.file, "line": item.line}
@@ -188,13 +188,13 @@ def list_symbols(graph: Graph) -> Answer:
 
 
 def test_health(graph: Graph, tmap, repo: str = ".") -> Answer:
-    """Städkön som data: samma analys som `fatta testhealth`, för båda ytorna."""
+    """The cleanup queue as data: the same analysis as `fatta testhealth`, for both surfaces."""
     from pathlib import Path
 
     from . import testhealth as th
 
     if tmap is None:
-        return Answer("test_health", {"error": "ingen testkarta laddad"})
+        return Answer("test_health", {"error": "no test map loaded"})
     findings = th.analyze(tmap, graph)
     churn = th.measure_churn(tmap, Path(repo))
     return Answer(
@@ -222,22 +222,22 @@ def test_health(graph: Graph, tmap, repo: str = ".") -> Answer:
 TOOLS = [
     {
         "name": "list_symbols",
-        "description": "Alla lokala funktioner med fil och rad — navigationsytan.",
+        "description": "All local functions with file and line — the navigation surface.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "test_health",
         "description": (
-            "Tester som spikar tillstånd produktionen inte kan producera, rankade, "
-            "plus testfiler som lagats utan att deras mål ändrats."
+            "Tests pinning states production cannot produce, ranked, plus test files "
+            "fixed without their targets changing."
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "which_tests_pin",
         "description": (
-            "Testerna som spikar en symbols beteende, med deras assertions ordagrant. "
-            "Läs dem FÖRST vid ändringar — beteendekrav bor ofta enbart där."
+            "The tests pinning a symbol's behavior, with their assertions verbatim. "
+            "Read them FIRST when changing — behavioral requirements often live only there."
         ),
         "inputSchema": {
             "type": "object",
@@ -251,9 +251,9 @@ TOOLS = [
     {
         "name": "what_must_i_know",
         "description": (
-            "Den minsta slutna mängd du måste förstå för att kunna ändra en funktion, "
-            "med kontrakt och härkomst. Har du läst allt i must_know behöver du inte "
-            "gräva djupare."
+            "The minimal closed set you must understand to change a function, with "
+            "contracts and provenance. Once you have read everything in must_know you "
+            "need not dig deeper."
         ),
         "inputSchema": {
             "type": "object",
@@ -264,7 +264,7 @@ TOOLS = [
     {
         "name": "doc_leverage",
         "description": (
-            "Var i kodbasen ett pålitligt kontrakt skulle bespara mest läsning, rankat."
+            "Where in the codebase a trustworthy contract would save the most reading, ranked."
         ),
         "inputSchema": {
             "type": "object",
@@ -285,11 +285,11 @@ def dispatch(graph: Graph, name: str, arguments: dict, tmap=None) -> Answer:
         return what_must_i_know(graph, arguments.get("symbol", ""))
     if name == "doc_leverage":
         return doc_leverage(graph, int(arguments.get("limit", 20)))
-    return Answer(name, {"error": f"okänt verktyg {name!r}"})
+    return Answer(name, {"error": f"unknown tool {name!r}"})
 
 
 def handle(graph: Graph, message: dict, tmap=None) -> dict | None:
-    """Ett JSON-RPC-svar, eller None för notifieringar som inte ska besvaras."""
+    """A JSON-RPC response, or None for notifications that must not be answered."""
     method = message.get("method")
     request_id = message.get("id")
 
@@ -306,12 +306,12 @@ def handle(graph: Graph, message: dict, tmap=None) -> dict | None:
         answer = dispatch(graph, params.get("name", ""), params.get("arguments") or {}, tmap)
         result = {"content": [{"type": "text", "text": answer.as_json()}]}
     elif request_id is None:
-        return None  # notifiering, till exempel notifications/initialized
+        return None  # a notification, e.g. notifications/initialized
     else:
         return {
             "jsonrpc": "2.0",
             "id": request_id,
-            "error": {"code": -32601, "message": f"okänd metod {method!r}"},
+            "error": {"code": -32601, "message": f"unknown method {method!r}"},
         }
 
     if request_id is None:
@@ -320,7 +320,7 @@ def handle(graph: Graph, message: dict, tmap=None) -> dict | None:
 
 
 def serve(graph: Graph, stdin=None, stdout=None, tmap=None) -> None:
-    """Läser JSON-RPC rad för rad från stdin och svarar på stdout."""
+    """Reads JSON-RPC line by line from stdin and answers on stdout."""
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     for line in stdin:

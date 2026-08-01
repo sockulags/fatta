@@ -1,9 +1,10 @@
-"""Harness för A/B-mätningen: tömmer en funktionskropp och kör testsviten.
+"""Harness for the A/B experiment: empties a function body and runs the test suite.
 
-Ett fall är giltigt bara om sviten *går sönder* när kroppen töms. Annars täcks inte
-funktionen av något test, och utfallet hade varit meningslöst oavsett vad agenten gjorde.
+A case is valid only if the suite *breaks* when the body is emptied. Otherwise the
+function is not covered by any test, and the outcome would be meaningless regardless of
+what the agent did.
 
-Körs från roten av kodbasen som mäts, med ett färdigbyggt .fatta/graph.json.
+Run from the root of the codebase under measurement, with a prebuilt graph.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ STUB = 'throw new Error("fatta-ab: not implemented");'
 
 
 def signature_of(body: str) -> str:
-    """Allt fram till kroppens första klammer på djup noll."""
+    """Everything up to the body's first brace at depth zero."""
     depth = 0
     previous = ""
     for index, char in enumerate(body):
@@ -33,7 +34,7 @@ def signature_of(body: str) -> str:
         elif char == "{" and depth == 0:
             return body[:index].rstrip()
         previous = char
-    raise ValueError("hittade ingen kropp att tömma")
+    raise ValueError("found no body to blank")
 
 
 @dataclass
@@ -45,11 +46,11 @@ class Case:
     cf: int
     loc: int
     judges: list[str] | None = None
-    """Testfilerna som blir röda av en tom kropp — fallets facit."""
+    """The test files a blank body turns red — the case's answer key."""
 
 
-# Indexet ligger utanför repot med flit: det lagrar funktionskroppar, och en agent som
-# hittar filen kan läsa originalimplementationen den ska återskapa.
+# The index lives outside the repo on purpose: it stores function bodies, and an agent
+# that finds the file can read the original implementation it is supposed to recreate.
 GRAPH = Path("../ab-index/graph.json")
 
 
@@ -58,18 +59,19 @@ def load(graph_path: Path = GRAPH) -> Graph:
 
 
 def blank(graph: Graph, item_id: str) -> str:
-    """Ersätter kroppen med en stub. Returnerar originaltexten."""
+    """Replaces the body with a stub. Returns the original text."""
     item = graph.get(item_id)
     if item is None or not item.body:
-        raise ValueError(f"inget item med kropp: {item_id}")
+        raise ValueError(f"no item with a body: {item_id}")
     path = Path(item.file)
-    # newline="" bevarar CRLF. Emittern läser filen rå via Node, så kroppen i grafen har
-    # filens radslut — läser Python med universella radslut matchar ingenting.
+    # newline="" preserves CRLF. The emitter reads the file raw via Node, so the body in
+    # the graph has the file's line endings — reading with universal newlines matches
+    # nothing.
     with path.open("r", encoding="utf-8", newline="") as handle:
         text = handle.read()
     body = item.body if item.body in text else item.body.replace("\n", "\r\n")
     if body not in text:
-        raise ValueError(f"hittade inte kroppen i {item.file} — är indexet aktuellt?")
+        raise ValueError(f"body not found in {item.file} — is the index current?")
     stub = f"{signature_of(body)} {{\n  {STUB}\n}}"
     with path.open("w", encoding="utf-8", newline="") as handle:
         handle.write(text.replace(body, stub, 1))
@@ -88,7 +90,7 @@ _COUNTS = re.compile(r"Tests\s+(?:(\d+) failed \| )?(\d+) passed")
 
 
 def test_counts(output: str) -> dict:
-    """Antal röda och gröna tester ur vitest-sammanfattningen."""
+    """Red and green test counts from the vitest summary."""
     m = _COUNTS.search(output)
     if not m:
         return {"failed": None, "passed": None}
@@ -96,16 +98,16 @@ def test_counts(output: str) -> dict:
 
 
 def failing_test_files(output: str) -> set[str]:
-    """Vilka testfiler som blev röda. De är fallets domare."""
+    """Which test files went red. They are the case's judges."""
     return {m.group(1).replace("\\", "/") for m in FAIL_LINE.finditer(output)}
 
 
 def hide(files: set[str]) -> dict[str, Path]:
-    """Flyttar domarna ut ur repot under agentkörningen.
+    """Moves the judges out of the repo during the agent run.
 
-    Att låta agenten läsa tester är realistiskt — det är så man implementerar mot spec.
-    Att låta den läsa just den fil som avgör fallet vore att ge bort facit. Därför göms
-    bara domaren, inte tester i allmänhet."""
+    Letting the agent read tests is realistic — that is how you implement against a
+    spec. Letting it read the very file that decides the case would give away the answer
+    key. Hence only the judge is hidden, not tests in general."""
     moved: dict[str, Path] = {}
     for name in files:
         source = Path(name)
@@ -126,15 +128,15 @@ def unhide(moved: dict[str, Path]) -> None:
 
 
 def run_tests(timeout: int = 600) -> tuple[bool, str]:
-    # shell=True kräver en sträng på Windows; med en lista tas bara första elementet
-    # och utdata blir None.
+    # shell=True requires a string on Windows; with a list only the first element is
+    # used and the output becomes None.
     result = subprocess.run(
         "pnpm exec vitest run --reporter=dot",
         capture_output=True,
         text=True,
         timeout=timeout,
         shell=True,
-        # Windows-locale är cp1252; vitest skriver UTF-8. Utan detta faller avkodningen.
+        # The Windows locale is cp1252; vitest writes UTF-8. Decoding fails without this.
         encoding="utf-8",
         errors="replace",
     )
@@ -142,22 +144,22 @@ def run_tests(timeout: int = 600) -> tuple[bool, str]:
 
 
 def validate(graph: Graph, cases: list[Case]) -> list[Case]:
-    """Behåller bara fall där tömd kropp får sviten att fallera."""
+    """Keeps only cases where a blank body makes the suite fail."""
     keepers = []
     for case in cases:
         try:
             blank(graph, case.item_id)
         except ValueError as err:
-            print(f"  {case.name:<30} HOPPAS ÖVER — {err}")
+            print(f"  {case.name:<30} SKIPPED — {err}")
             restore()
             continue
         passed, output = run_tests()
         restore()
         if passed:
-            print(f"  {case.name:<30} otäckt (sviten grön med tom kropp)")
+            print(f"  {case.name:<30} uncovered (suite green with blank body)")
             continue
         case.judges = sorted(failing_test_files(output))
-        print(f"  {case.name:<30} giltig  CF={case.cf}  domare: {len(case.judges)}")
+        print(f"  {case.name:<30} valid  CF={case.cf}  judges: {len(case.judges)}")
         keepers.append(case)
     return keepers
 
@@ -169,11 +171,11 @@ def cases_from(path: Path) -> list[Case]:
 if __name__ == "__main__":
     graph = load()
     cases = cases_from(Path(sys.argv[1]))
-    print(f"validerar {len(cases)} kandidater\n")
+    print(f"validating {len(cases)} candidates\n")
     keepers = validate(graph, cases)
     out = Path("ab-valid.json")
     out.write_text(
         json.dumps([c.__dict__ for c in keepers], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"\n{len(keepers)} giltiga fall skrivna till {out}")
+    print(f"\n{len(keepers)} valid cases written to {out}")

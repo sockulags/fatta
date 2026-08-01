@@ -1,16 +1,16 @@
-// Testkarta för TypeScript: vilka tester spikar vilken funktion, och vad hävdar de?
+// Test map for TypeScript: which tests pin which function, and what do they claim?
 //
-//   node test-map.mjs <sökväg till tsconfig.json> [utfil.json]
+//   node test-map.mjs <path to tsconfig.json> [outfile.json]
 //
-// Tester når produktionskod på tre sätt, och alla tre måste fångas för att kartan ska
-// hitta domarna: (1) statiska importer vars identifierare löses av typcheckaren,
-// (2) `const { GET } = await import('@/app/...')` — destrukturering ur dynamisk import,
-// där identifieraren bara löser till en lokal bindning, så modulspecifieraren måste
-// följas i stället, och (3) `readFileSync('app/.../page.tsx')` — källästande tester
-// som pekar ut filen med en stränglitteral.
+// Tests reach production code in three ways, and all three must be captured for the map
+// to find the judges: (1) static imports whose identifiers the type checker resolves,
+// (2) `const { GET } = await import('@/app/...')` — destructuring out of a dynamic
+// import, where the identifier only resolves to a local binding, so the module specifier
+// must be followed instead, and (3) `readFileSync('app/.../page.tsx')` — source-reading
+// tests that point at the file with a string literal.
 //
-// Hjälpfunktioner i testfilen expanderas: ett it() som anropar mountActions() ska
-// tillskrivas det mountActions rör.
+// Helper functions inside the test file are expanded: an it() calling mountActions()
+// is attributed what mountActions touches.
 
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -18,7 +18,7 @@ import fs from "node:fs";
 
 const [, , tsconfigArg, outArg] = process.argv;
 if (!tsconfigArg) {
-  console.error("användning: node test-map.mjs <tsconfig.json> [utfil.json]");
+  console.error("usage: node test-map.mjs <tsconfig.json> [outfile.json]");
   process.exit(2);
 }
 
@@ -30,10 +30,10 @@ function loadTypeScript() {
     try {
       return createRequire(path.join(base, "noop.js"))("typescript");
     } catch {
-      /* nästa */
+      /* next */
     }
   }
-  console.error("hittade inte paketet `typescript` i projektet.");
+  console.error("could not find the `typescript` package in the project.");
   process.exit(3);
 }
 
@@ -72,7 +72,7 @@ function callBase(expr) {
 }
 
 function titleOf(arg) {
-  if (!arg) return "(namnlös)";
+  if (!arg) return "(unnamed)";
   if (ts.isStringLiteralLike(arg)) return arg.text;
   return arg.getText().slice(0, 80);
 }
@@ -84,20 +84,20 @@ function declarationOf(node) {
     try {
       symbol = checker.getAliasedSymbol(symbol);
     } catch {
-      /* behåll */
+      /* keep */
     }
   }
   return (symbol.declarations || [])[0] || null;
 }
 
-/** Modulspecifierare → produktionsfil, via tsconfig:ens paths-upplösning. */
+/** Module specifier → production file, via the tsconfig paths resolution. */
 function resolveModule(spec, fromFile) {
   const resolved = ts.resolveModuleName(spec, fromFile, config.options, ts.sys);
   const file = resolved?.resolvedModule?.resolvedFileName;
   return file && isLocalProduction(file) ? file : null;
 }
 
-/** import('spec') ur ett initialiseringsuttryck, genom await/parenteser. */
+/** import('spec') out of an initializer expression, through await/parentheses. */
 function dynamicImportSpec(node) {
   let current = node;
   while (current && (ts.isAwaitExpression(current) || ts.isParenthesizedExpression(current))) {
@@ -115,13 +115,13 @@ function dynamicImportSpec(node) {
   return null;
 }
 
-/** Samlar mål och assertions ur ett godtyckligt AST-subträd. */
+/** Collects targets and assertions from an arbitrary AST subtree. */
 function collect(node, sourceFile, into) {
   const record = (name, file, line) =>
     into.targets.set(`${file}#${name}`, { name, file: rel(file), line });
 
   const visit = (child) => {
-    // (2) destrukturerad dynamisk import
+    // (2) destructured dynamic import
     if (ts.isVariableDeclaration(child) && child.initializer) {
       const spec = dynamicImportSpec(child.initializer);
       if (spec) {
@@ -138,7 +138,7 @@ function collect(node, sourceFile, into) {
       }
     }
 
-    // (3) sökvägsliteral till en produktionsfil — källäsande test
+    // (3) path literal pointing at a production file — a source-reading test
     if (ts.isStringLiteralLike(child) && PATHISH.test(child.text)) {
       const candidate = path.join(projectDir, child.text);
       if (fs.existsSync(candidate) && isLocalProduction(candidate)) {
@@ -147,8 +147,8 @@ function collect(node, sourceFile, into) {
       }
     }
 
-    // Fabrikationskast: `as any`/`as unknown` är sättet att konstruera ett värde
-    // produktionens typer inte tillåter — fingeravtrycket för påhittade tillstånd.
+    // Fabrication casts: `as any`/`as unknown` is how you construct a value the
+    // production types do not allow — the fingerprint of invented states.
     if (ts.isAsExpression(child)) {
       const typeText = child.type.getText();
       if (typeText === "any" || typeText === "unknown" || typeText === "never") {
@@ -159,7 +159,7 @@ function collect(node, sourceFile, into) {
       }
     }
 
-    // (1) upplösta identifierare
+    // (1) resolved identifiers
     if (ts.isIdentifier(child)) {
       const declaration = declarationOf(child);
       if (declaration) {
@@ -180,7 +180,7 @@ function collect(node, sourceFile, into) {
       }
     }
 
-    // assertions: hela satsen, kedjan .toBe(...) bär värdet
+    // assertions: the whole statement, the .toBe(...) chain carries the value
     if (ts.isCallExpression(child) && callBase(child.expression) === "expect") {
       let statement = child;
       while (
@@ -226,7 +226,7 @@ for (const file of program.getSourceFiles()) {
   if (!TEST_FILE.test(file.fileName) || file.fileName.includes("node_modules/")) continue;
   const testFile = rel(file.fileName);
 
-  // Förpass: hjälpfunktioner i testfilen och vad de själva rör.
+  // Pre-pass: helper functions in the test file and what they themselves touch.
   const helperNames = new Set();
   const helperNodes = new Map();
   const scanHelpers = (node) => {
@@ -249,7 +249,7 @@ for (const file of program.getSourceFiles()) {
     collect(node, file, bag);
     helperBags.set(name, bag);
   }
-  // fixpunkt: hjälpare som anropar hjälpare
+  // fixpoint: helpers calling helpers
   let changed = true;
   while (changed) {
     changed = false;
@@ -267,9 +267,9 @@ for (const file of program.getSourceFiles()) {
     }
   }
 
-  // Statiska importer av produktionsmoduler gäller varje test i filen. Det är ett
-  // svagare belägg än ett direkt anrop, men det fångar indirektion: testet importerar
-  // buildAtsParsePreview och domaren fäller den interna readiness den anropar.
+  // Static imports of production modules apply to every test in the file. Weaker
+  // evidence than a direct call, but it captures indirection: the test imports one
+  // function and the judge fells the internal helper it calls.
   const fileImports = new Set();
   for (const statement of file.statements) {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)) {
@@ -341,7 +341,7 @@ if (target) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, JSON.stringify(out), "utf8");
   console.error(
-    `skrev ${tests.length} tester ur ${new Set(tests.map((t) => t.file)).size} filer till ${target}`
+    `wrote ${tests.length} tests from ${new Set(tests.map((t) => t.file)).size} files to ${target}`
   );
 } else {
   process.stdout.write(JSON.stringify(out));

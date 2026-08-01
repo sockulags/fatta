@@ -1,18 +1,19 @@
-"""Städkön: tester som spikar tillstånd produktionen inte kan producera.
+"""The cleanup queue: tests pinning states production cannot produce.
 
-Äkta onåbarhet är oavgörbar, men fabricerade fall lämnar fingeravtryck — för att bygga
-ett tillstånd produktionen aldrig bygger måste testet bryta sig ur något:
+True unreachability is undecidable, but fabricated cases leave fingerprints — to build a
+state production never builds, the test must break out of something:
 
-- **typsystemet**: `as any`/`as unknown` eller `@ts-expect-error` i testet
-- **ingångsvägen**: direktanrop av en intern funktion som produktionen bara når genom
-  validerande entrypoints
-- **verkligheten**: källäsande tester som regexar produktionsfilen och därmed fäller
-  varje refaktorering, även beteendebevarande
-- **kontraktsnivån**: långa literaler spikade på interna funktioner — kopietester som
-  bryts av varje strängändring
+- **the type system**: `as any`/`as unknown` or `@ts-expect-error` in the test
+- **the entry path**: directly calling an internal function production only reaches
+  through validating entry points
+- **reality**: source-reading tests that regex the production file and therefore fail on
+  every refactor, even behavior-preserving ones
+- **the contract level**: long literals pinned on internal functions — copy tests broken
+  by every string change
 
-Utfallet är en granskningskö med belägg per rad, inte en dom: varje signal har legitima
-undantag (partiella fixturer, medveten isolering, avsiktliga copy-kontrakt vid entrypoints).
+The output is a review queue with evidence per line, not a verdict: every signal has
+legitimate exceptions (partial fixtures, deliberate isolation, intentional copy contracts
+at entry points).
 """
 
 from __future__ import annotations
@@ -25,8 +26,8 @@ from pathlib import Path
 from .graph import Graph
 from .testmap import TestCase, TestMap
 
-# expect(x).toBe('lång literal') — kopietestets form. Korta literaler ('COMPLETED') är
-# oftast medvetna kontrakt; längden är vad som skiljer statuskod från kopia.
+# expect(x).toBe('long literal') — the copy test's shape. Short literals ('COMPLETED')
+# are usually deliberate contracts; length is what separates status code from copy.
 _LITERAL_PIN = re.compile(r"\.(toBe|toEqual|toContain|toMatch)\(\s*['\"](.{15,}?)['\"]")
 
 WEIGHTS = {"fabricated": 3, "below_waterline": 1, "source_reader": 3, "literal_pin": 2}
@@ -44,10 +45,11 @@ class Finding:
 
 
 def internal_symbols(graph: Graph) -> set[tuple[str, str]]:
-    """(fil, namn) för funktioner som har produktionsanropare — alltså inte entrypoints.
+    """(file, name) for functions with production callers — i.e. not entry points.
 
-    Ett test som anropar en sådan direkt kringgår vägen produktionen tar dit, inklusive
-    validering på vägen. Det är inte fel i sig, men det är där omöjliga fall uppstår."""
+    A test calling one directly bypasses the path production takes to get there,
+    including any validation on the way. Not wrong in itself, but it is where impossible
+    cases arise."""
     called: set[str] = set()
     for item in graph.items.values():
         if item.external is None:
@@ -71,13 +73,13 @@ def analyze(tm: TestMap, graph: Graph | None = None) -> list[Finding]:
             first = test.casts[0]
             finding.add(
                 "fabricated",
-                f"{len(test.casts)} typkast, t.ex. L{first['line']}: {first['text']}",
+                f"{len(test.casts)} type cast(s), e.g. L{first['line']}: {first['text']}",
             )
         if test.expect_errors and has_prod_targets:
-            finding.add("fabricated", f"{test.expect_errors} st @ts-expect-error/@ts-ignore")
+            finding.add("fabricated", f"{test.expect_errors} @ts-expect-error/@ts-ignore")
 
         for read in test.source_reads:
-            finding.add("source_reader", f"läser källkoden i {read}")
+            finding.add("source_reader", f"reads the source of {read}")
 
         direct_internals = [
             t for t in test.targets
@@ -93,15 +95,15 @@ def analyze(tm: TestMap, graph: Graph | None = None) -> list[Finding]:
             line, literal = pins[0]
             finding.add(
                 "literal_pin",
-                f"{len(pins)} literalspik(ar) på intern funktion, t.ex. L{line}: '{literal}'",
+                f"{len(pins)} literal pin(s) on an internal function, e.g. L{line}: '{literal}'",
             )
 
-        # Vattenlinjen är kontext, inte anklagelse: att enhetstesta interna funktioner
-        # är normalt. Den läggs bara till när en annan signal redan slagit — då säger
-        # den *var* det fabricerade tillståndet uppstod: nedanför valideringen.
+        # The waterline is context, not accusation: unit-testing internals is normal.
+        # It is only added once another signal has fired — then it says *where* the
+        # fabricated state arose: below the validation layer.
         if finding.reasons and direct_internals:
             names = ", ".join(sorted({t["name"] for t in direct_internals})[:4])
-            finding.add("below_waterline", f"direktanropar interna: {names}")
+            finding.add("below_waterline", f"directly calls internals: {names}")
 
         if finding.reasons:
             findings.append(finding)
@@ -111,15 +113,15 @@ def analyze(tm: TestMap, graph: Graph | None = None) -> list[Finding]:
 
 def render(findings: list[Finding], limit: int = 25) -> str:
     if not findings:
-        return "Inga fabrikationssignaler hittade."
+        return "No fabrication signals found."
     by_kind: dict[str, int] = {}
     for finding in findings:
         for reason in finding.reasons:
             kind = reason.split("]")[0].lstrip("[")
             by_kind[kind] = by_kind.get(kind, 0) + 1
     lines = [
-        f"{len(findings)} tester flaggade (av signalstyrka, starkast först).",
-        "Kategorier: "
+        f"{len(findings)} tests flagged (by signal strength, strongest first).",
+        "Categories: "
         + ", ".join(f"{k}: {v}" for k, v in sorted(by_kind.items(), key=lambda kv: -kv[1])),
         "",
     ]
@@ -132,29 +134,30 @@ def render(findings: list[Finding], limit: int = 25) -> str:
             lines.append(f"   {reason}")
         lines.append("")
     if len(findings) > limit:
-        lines.append(f"… {len(findings) - limit} till. Kör med --limit 0 för alla.")
+        lines.append(f"… {len(findings) - limit} more. Run with --limit 0 for all.")
     return "\n".join(lines)
 
 
 # -- historiken -----------------------------------------------------------------
 
 
-SEP = chr(1)  # %x01 i git-formatsträngen
+SEP = chr(1)  # %x01 in the git format string
 
 
 @dataclass(frozen=True)
 class Churn:
     total: int
-    """Commits som rört testfilen."""
+    """Commits that touched the test file."""
     test_only: int
-    """Commits som rört testfilen utan att röra någon av dess produktionsmålfiler.
+    """Commits that touched the test file without touching any of its production
+    target files.
 
-    Det är den rena underhållskostnaden: testet behövde lagas fast beteendet det
-    påstås skydda inte ändrades."""
+    This is the pure maintenance cost: the test needed fixing although the behavior it
+    claims to protect did not change."""
 
 
 def parse_git_log(text: str) -> list[set[str]]:
-    """`git log --name-only --pretty=format:%x01%H` → en filmängd per commit."""
+    """`git log --name-only --pretty=format:%x01%H` → one file set per commit."""
     commits: list[set[str]] = []
     for block in text.split(SEP):
         lines = [l.strip() for l in block.splitlines() if l.strip()]
@@ -164,10 +167,10 @@ def parse_git_log(text: str) -> list[set[str]]:
 
 
 def measure_churn(tm: TestMap, repo: Path) -> dict[str, Churn]:
-    """Testfil → churn, ur repots faktiska historik.
+    """Test file → churn, from the repo's actual history.
 
-    `repo` får vara en paketkatalog i ett monorepo: git-loggens sökvägar är alltid
-    repo-rotrelativa, så kartans paketrelativa sökvägar prefixas med `--show-prefix`."""
+    `repo` may be a package directory in a monorepo: git log paths are always relative to
+    the repo root, so the map's package-relative paths are prefixed via `--show-prefix`."""
     result = subprocess.run(
         ["git", "log", "--name-only", "--pretty=format:%x01%H"],
         cwd=repo,
@@ -204,31 +207,31 @@ def measure_churn(tm: TestMap, repo: Path) -> dict[str, Churn]:
         touched = [c for c in commits if test_file in c]
         if not touched:
             continue
-        # Skapelsecommiten räknas bort: allt är nytt där, inget "lagades".
+        # The creation commit is excluded: everything is new there, nothing was "fixed".
         alone = sum(1 for c in touched[:-1] if not (c & targets))
         churn[test_file] = Churn(total=len(touched), test_only=alone)
     return churn
 
 
 def render_churn(churn: dict[str, Churn], findings: list[Finding], limit: int = 12) -> str:
-    """Historiksektionen: testfiler som bevisligen kostat underhåll.
+    """The history section: test files that have demonstrably cost maintenance.
 
-    Korsningen är poängen — en fil med hög ensam-churn OCH fabrikationssignaler är den
-    starkaste strykkandidaten: den har kostat lagningar utan att beteendet ändrats, och
-    den spikar tillstånd produktionen inte producerar."""
+    The intersection is the point — a file with high test-only churn AND fabrication
+    signals is the strongest deletion candidate: it has cost fixes while behavior did not
+    change, and it pins states production does not produce."""
     rows = [(f, c) for f, c in churn.items() if c.test_only >= 2]
     if not rows:
-        return "Ingen testfil har lagats upprepade gånger utan att målen ändrats."
+        return "No test file has been repeatedly fixed without its targets changing."
     flagged_files = {finding.test.file for finding in findings}
     rows.sort(key=lambda fc: -fc[1].test_only)
     lines = [
-        "Testfiler lagade utan att produktionsmålen ändrats (ensam-churn minst 2):",
+        "Test files fixed without their production targets changing (test-only churn >= 2):",
         "",
-        f"{'ensam':>6}{'totalt':>8}   fil",
+        f"{'alone':>6}{'total':>8}   file",
     ]
     for file, c in rows[:limit]:
-        marker = "  ⚠ även fabrikationssignaler" if file in flagged_files else ""
+        marker = "  ⚠ also has fabrication signals" if file in flagged_files else ""
         lines.append(f"{c.test_only:>6}{c.total:>8}   {file}{marker}")
     if len(rows) > limit:
-        lines.append(f"… {len(rows) - limit} till")
+        lines.append(f"… {len(rows) - limit} more")
     return "\n".join(lines)

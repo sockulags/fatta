@@ -1,4 +1,4 @@
-"""Tester för testkartan. Emittern valideras mot verklig kodbas; här testas logiken."""
+"""Tests for the test map. The emitter is validated on a real codebase; this tests the logic."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def test_otestade_symboler_pekas_ut() -> None:
 def test_render_varnar_nar_inget_test_finns() -> None:
     text = render("bar", [], {})
 
-    assert "ospecificerat" in text
+    assert "unspecified" in text
 
 
 def test_render_visar_mockar() -> None:
@@ -89,7 +89,7 @@ def test_parse_avvisar_fel_format() -> None:
 
 
 def test_kallastande_test_hittas_via_filmal() -> None:
-    """Ett test som läser källfilen med readFileSync når aldrig symbolen — bara filen."""
+    """A test reading the source with readFileSync never reaches the symbol — only the file."""
     lasare = TestCase(
         file="copy.test.ts", suite="", name="t", line=1,
         targets=(), file_targets=("app/skills/page.tsx",), assertions=(),

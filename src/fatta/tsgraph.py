@@ -1,7 +1,7 @@
-"""Frontend för TypeScript: läser grafen som scripts/ts-graph.mjs skriver.
+"""TypeScript frontend: reads the graph that scripts/ts-graph.mjs writes.
 
-Emittern kör tsc:s egen typcheckare, så referenserna är upplösta på samma sätt som
-rustdoc gör det för Rust. Kärnan i `graph.py` ser ingen skillnad.
+The emitter runs tsc's own type checker, so references are resolved the same way rustdoc
+does it for Rust. The core in `graph.py` sees no difference.
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ FORMAT = "fatta-graph/1"
 
 
 def emit(tsconfig: Path, out: Path) -> Path:
-    """Kör emittern och returnerar sökvägen till grafen."""
+    """Runs the emitter and returns the path to the graph."""
     if not EMITTER.is_file():
-        raise FileNotFoundError(f"hittade inte emittern: {EMITTER}")
+        raise FileNotFoundError(f"emitter not found: {EMITTER}")
     result = subprocess.run(
         ["node", str(EMITTER), str(tsconfig), str(out)],
         capture_output=True,
@@ -28,7 +28,7 @@ def emit(tsconfig: Path, out: Path) -> Path:
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"ts-graph misslyckades ({result.returncode}): {result.stderr.strip()}"
+            f"ts-graph failed ({result.returncode}): {result.stderr.strip()}"
         )
     if result.stderr.strip():
         print(result.stderr.strip(), file=sys.stderr)
@@ -37,7 +37,7 @@ def emit(tsconfig: Path, out: Path) -> Path:
 
 def parse(data: dict, **graph_args) -> Graph:
     if data.get("format") != FORMAT:
-        raise ValueError(f"okänt grafformat: {data.get('format')!r}")
+        raise ValueError(f"unknown graph format: {data.get('format')!r}")
     items: dict[str, Item] = {}
     for item_id, raw in data["items"].items():
         items[item_id] = Item(

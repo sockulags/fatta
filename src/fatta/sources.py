@@ -1,7 +1,7 @@
-"""Hittar källträdet som ett rustdoc-JSON:s spans pekar in i.
+"""Finds the source tree that a rustdoc JSON's spans point into.
 
-Spans är relativa till crate-roten, så för beroenden hämtade från crates.io måste roten
-letas upp i registrets källcache.
+Spans are relative to the crate root, so for dependencies fetched from crates.io the root
+must be looked up in the registry's source cache.
 """
 
 from __future__ import annotations
@@ -24,10 +24,10 @@ def looks_like_crate_root(path: Path) -> bool:
 
 
 def locate(doc: dict, doc_path: Path, override: Path | None = None) -> Path:
-    """Bäst gissning på crate-roten.
+    """Best guess at the crate root.
 
-    Ordning: uttrycklig flagga, target/doc-konventionen tre nivåer upp, och sist
-    registrets källcache på namn och version.
+    Order: explicit flag, the target/doc convention three levels up, and finally the
+    registry source cache by name and version.
     """
     if override is not None:
         return override

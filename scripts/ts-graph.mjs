@@ -1,10 +1,10 @@
-// Frontend för TypeScript: skriver ut samma graf som rustdoc-frontenden bygger.
+// TypeScript frontend: emits the same graph the rustdoc frontend builds.
 //
-//   node ts-graph.mjs <sökväg till tsconfig.json> [utfil.json]
+//   node ts-graph.mjs <path to tsconfig.json> [outfile.json]
 //
-// `typescript` läses från projektet som analyseras, så ingen version behöver installeras
-// här. Kontrakt hämtas som verklig källtext, precis som på Rust-sidan — det är den text
-// en läsare faktiskt möter.
+// `typescript` is loaded from the project under analysis, so no version needs to be
+// installed here. Contracts are extracted as real source text, just like on the Rust
+// side — it is the text a reader actually faces.
 
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -12,7 +12,7 @@ import fs from "node:fs";
 
 const [, , tsconfigArg, outArg] = process.argv;
 if (!tsconfigArg) {
-  console.error("användning: node ts-graph.mjs <tsconfig.json> [utfil.json]");
+  console.error("usage: node ts-graph.mjs <tsconfig.json> [outfile.json]");
   process.exit(2);
 }
 
@@ -24,11 +24,11 @@ function loadTypeScript() {
     try {
       return createRequire(path.join(base, "noop.js"))("typescript");
     } catch {
-      /* nästa */
+      /* next */
     }
   }
   console.error(
-    "hittade inte paketet `typescript`. Kör i ett projekt som har det installerat."
+    "could not find the `typescript` package. Run in a project that has it installed."
   );
   process.exit(3);
 }
@@ -49,13 +49,13 @@ const program = ts.createProgram({
 });
 const checker = program.getTypeChecker();
 
-/** Stabilt id: fil plus position. */
+/** Stable id: file plus position. */
 function idOf(node) {
   const file = node.getSourceFile();
   return `${path.relative(projectDir, file.fileName).replace(/\\/g, "/")}#${node.pos}`;
 }
 
-/** Vilket paket en deklaration kommer ifrån, eller null för lokal kod. */
+/** Which package a declaration comes from, or null for local code. */
 function originOf(node) {
   const file = node.getSourceFile().fileName;
   if (program.isSourceFileDefaultLibrary(node.getSourceFile())) return "lib";
@@ -78,14 +78,14 @@ const DECLARATION = new Set([
   ts.SyntaxKind.EnumMember,
 ]);
 
-// Funktionsuttryck bundna till en modulkonstant är funktioner som alla andra.
+// Function expressions bound to a module constant are functions like any other.
 const CALLABLE = new Set([
   ts.SyntaxKind.ArrowFunction,
   ts.SyntaxKind.FunctionExpression,
   ts.SyntaxKind.VariableDeclaration,
 ]);
 
-/** En modulkonstant räknas som beroende; en lokal variabel i en kropp gör det inte. */
+/** A module constant counts as a dependency; a local variable in a body does not. */
 function isModuleConstant(decl) {
   if (!ts.isVariableDeclaration(decl)) return false;
   const statement = decl.parent && decl.parent.parent;
@@ -93,7 +93,7 @@ function isModuleConstant(decl) {
     ts.isSourceFile(statement.parent);
 }
 
-/** Deklarationen som ett uttryck syftar på, aliaset upplöst. */
+/** The declaration an expression refers to, alias resolved. */
 function targetOf(node) {
   let symbol = checker.getSymbolAtLocation(node);
   if (!symbol) return null;
@@ -101,7 +101,7 @@ function targetOf(node) {
     try {
       symbol = checker.getAliasedSymbol(symbol);
     } catch {
-      /* behåll originalet */
+      /* keep the original */
     }
   }
   const declarations = symbol.declarations || [];
@@ -116,10 +116,10 @@ function targetOf(node) {
   return constant || null;
 }
 
-/** Vad en kropp anropar, bygger eller renderar.
+/** What a body calls, constructs or renders.
  *
- * JSX-taggar räknas med: `<BlockView />` är ett beroende lika mycket som ett anrop, och
- * i React är det den vanligaste formen. */
+ * JSX tags count: `<BlockView />` is a dependency as much as a call is, and in React it
+ * is the most common form. */
 function callsIn(node, into) {
   if (!node.body) return;
   const self = node;
@@ -134,7 +134,7 @@ function callsIn(node, into) {
   ts.forEachChild(node.body, visit);
 }
 
-/** Alla deklarationer ett typuttryck rör vid. */
+/** All declarations a type expression touches. */
 function refsIn(node, into) {
   if (!node) return;
   const visit = (child) => {
@@ -152,7 +152,7 @@ function refsIn(node, into) {
   visit(node);
 }
 
-/** Signaturen som text: allt fram till kroppen. */
+/** The signature as text: everything up to the body. */
 function signatureText(node) {
   const full = node.getText();
   if (node.body) {
@@ -162,7 +162,7 @@ function signatureText(node) {
   return full;
 }
 
-/** Huvudet på en typ: allt fram till första klammern. */
+/** A type's header: everything up to the first brace. */
 function headerText(node) {
   const full = node.getText();
   const brace = full.indexOf("{");
@@ -217,12 +217,12 @@ function record(node, owner) {
   const doc = docOf(node);
   const base = {
     id,
-    name: node.name ? node.name.getText() : "(anonym)",
+    name: node.name ? node.name.getText() : "(anonymous)",
     external,
     file: path.relative(projectDir, file.fileName).replace(/\\/g, "/"),
     line,
   };
-  items.set(id, base); // placeras tidigt så att cykler inte går runt
+  items.set(id, base); // placed early so cycles cannot loop
 
   const refs = new Set();
 
@@ -280,7 +280,7 @@ for (const file of program.getSourceFiles()) {
   if (file.fileName.includes("node_modules/")) continue;
   ts.forEachChild(file, function walk(node) {
     if (DECLARATION.has(node.kind)) record(node);
-    // Arrow-funktioner bundna till en konstant räknas som funktioner.
+    // Arrow functions bound to a constant count as functions.
     if (ts.isVariableStatement(node)) {
       for (const decl of node.declarationList.declarations) {
         if (
@@ -309,7 +309,7 @@ const out = outArg ? path.resolve(outArg) : null;
 const text = JSON.stringify(graph);
 if (out) {
   fs.writeFileSync(out, text, "utf8");
-  console.error(`skrev ${items.size} items till ${out}`);
+  console.error(`wrote ${items.size} items to ${out}`);
 } else {
   process.stdout.write(text);
 }

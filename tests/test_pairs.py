@@ -1,4 +1,4 @@
-"""Tester för urval, blindning och poängsättning av granskningspar."""
+"""Tests for selection, blinding and scoring of review pairs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from fatta.pairs import Pair, candidates, select
 
 
 def fp(name: str, cf: int, loc: int) -> Footprint:
-    """Footprint med önskad CF; kroppen bär hela siffran."""
+    """A footprint with the desired CF; the body carries the whole number."""
     return Footprint(
         name=name,
         item_id=name,
@@ -21,7 +21,7 @@ def fp(name: str, cf: int, loc: int) -> Footprint:
 
 
 def test_oenighet_upptacks() -> None:
-    """Kort funktion med stort CF mot lång med litet — måtten pekar åt olika håll."""
+    """Short function with large CF vs long with small — the metrics point apart."""
     pool = candidates("x", [fp("kort_tung", cf=900, loc=5), fp("lang_latt", cf=100, loc=80)])
 
     assert len(pool) == 1
@@ -36,7 +36,7 @@ def test_enighet_markeras_inte_som_oenighet() -> None:
 
 
 def test_styrkan_begransas_av_det_svagaste_gapet() -> None:
-    """Ett par med stort CF-gap men litet radgap ska rankas lågt."""
+    """A pair with a large CF gap but a small line gap should rank low."""
     stort_gap = candidates("x", [fp("a", cf=1000, loc=5), fp("b", cf=100, loc=100)])[0]
     litet_gap = candidates("x", [fp("c", cf=1000, loc=48), fp("d", cf=100, loc=50)])[0]
 
@@ -57,15 +57,15 @@ def test_varje_funktion_anvands_hogst_en_gang() -> None:
 
 
 def test_blindningen_ar_stabil_men_delar_upp_sig() -> None:
-    """Samma par ska alltid renderas likadant, men ordningen får inte bära information."""
+    """The same pair must always render identically, but order must carry no information."""
     pairs = [
         Pair("x", fp(f"tung{i}", 900, 5), fp(f"latt{i}", 100, 80), True, 0.9)
         for i in range(24)
     ]
 
-    assert all(p.flipped == p.flipped for p in pairs), "instabil blindning"
+    assert all(p.flipped == p.flipped for p in pairs), "unstable blinding"
     labels = [p.heavier_label() for p in pairs]
-    assert set(labels) == {"A", "B"}, "tunga funktionen hamnar alltid på samma plats"
+    assert set(labels) == {"A", "B"}, "the heavy function always lands in the same slot"
 
 
 def test_loc_label_ar_motsatsen_vid_oenighet() -> None:
@@ -103,11 +103,11 @@ def test_tomt_ark_ger_inga_svar() -> None:
 
 
 def test_urvalet_sprids_over_styrkespannet() -> None:
-    """Rent girigt urval ger bara ytterligheter; banden ska ge spridning."""
+    """Purely greedy selection yields only extremes; the bands should give spread."""
     items = [fp(f"f{i}", cf=1000 - i * 30, loc=6 + i * 3) for i in range(20)]
 
     chosen = select("x", items, n_disagree=4, n_agree=0)
     spann = max(p.strength for p in chosen) - min(p.strength for p in chosen)
 
     assert len(chosen) == 4
-    assert spann > 0.05, "alla valda par har nästan samma styrka"
+    assert spann > 0.05, "all chosen pairs have nearly the same strength"

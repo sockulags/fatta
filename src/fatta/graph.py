@@ -1,11 +1,11 @@
-"""Språkneutral kärna: en graf av items, och beräkningarna över den.
+"""Language-neutral core: a graph of items, and the computations over it.
 
-Allt som är specifikt för ett språk ligger i en frontend som bygger den här grafen —
-`rustdoc` för Rust, `typescript` för TS. Beräkningarna nedan vet ingenting om något språk;
-de kan bara följa kontrakt och avgöra när de får sluta följa.
+Everything language-specific lives in a frontend that builds this graph — `rustdoc` for
+Rust, `typescript` for TS. The computations below know nothing about any language; they
+can only follow contracts and decide when they are allowed to stop following.
 
-Tre sorters item räcker: `function` (inklusive metoder), `type` (struct, enum, klass,
-interface, alias) och `member` (fält, variant, property).
+Three kinds of item suffice: `function` (including methods), `type` (struct, enum, class,
+interface, alias) and `member` (field, variant, property).
 """
 
 from __future__ import annotations
@@ -18,13 +18,13 @@ FUNCTION = "function"
 TYPE = "type"
 MEMBER = "member"
 
-# Paket vars kontrakt läsaren redan kan. Kostar noll, och avbryter vandringen: kan man
-# typen behöver man inte heller dess inre.
+# Packages whose contracts the reader already knows. They cost zero, and they terminate
+# the walk: if you know the type, you do not need its insides either.
 WELLKNOWN = frozenset(
     {
         # Rust
         "std", "core", "alloc", "proc_macro", "serde", "tokio", "anyhow", "thiserror",
-        # TypeScript och JS
+        # TypeScript and JS
         "typescript", "lib", "node", "@types/node", "react", "@types/react",
         "react-dom", "@types/react-dom", "next", "zod",
     }
@@ -37,19 +37,19 @@ _PATH_SEGMENT = re.compile(r"(?:::|\.)\s*([A-Za-z_$]\w*)")
 
 
 def estimate_tokens(text: str) -> int:
-    """Grov teckenbaserad uppskattning.
+    """Rough character-based estimate.
 
-    Räcker för rangordning. Byt mot en riktig tokenizer innan absoluta gränsvärden
-    publiceras."""
+    Good enough for ranking. Swap in a real tokenizer before publishing absolute
+    thresholds."""
     return max(1, round(len(text) / 3.6)) if text else 0
 
 
 def used_names(body: str) -> set[str]:
-    """Vilka medlemmar en kropp faktiskt nämner.
+    """Which members a body actually mentions.
 
-    Rustdoc och tsc ger inga kroppar i strukturerad form, så det här läses ur källtexten.
-    Heuristiken är avsiktligt frikostig — att ta med för mycket överskattar kostnaden, och
-    överskattning är det säkrare felet."""
+    Neither rustdoc nor tsc provides bodies in structured form, so this is read from the
+    source text. The heuristic is deliberately generous — including too much overestimates
+    the cost, and overestimation is the safer error."""
     return (
         set(_ACCESS.findall(body))
         | set(_BINDING.findall(body))
@@ -59,28 +59,30 @@ def used_names(body: str) -> set[str]:
 
 @dataclass(frozen=True)
 class Item:
-    """Ett namngivet ting i en kodbas."""
+    """A named thing in a codebase."""
 
     id: str
     name: str
     kind: str
     contract: str
-    """Deklarationen: signatur för en funktion, huvudet för en typ."""
+    """The declaration: signature for a function, header for a type."""
     body: str = ""
-    """Implementationen. Bara funktioner har en, och den räknas bara för den funktion
-    som mäts — aldrig för dess beroenden."""
+    """The implementation. Only functions have one, and it is only counted for the
+    function being measured — never for its dependencies."""
     members: tuple[str, ...] = ()
     refs: tuple[str, ...] = ()
-    """Item-id:n som kontraktet rör vid."""
+    """Item ids the contract touches."""
     owner: tuple[str, ...] = ()
-    """Mottagartypen för en metod. Står sällan i signaturen och måste bäras separat."""
+    """The receiver type of a method. It is rarely in the signature and must be carried
+    separately."""
     calls: tuple[str, ...] = ()
-    """Vad kroppen anropar eller bygger.
+    """What the body calls or constructs.
 
-    I Rust bär signaturen beroendena. I TypeScript, och särskilt i React, gör den inte
-    det — en komponent tar inga parametrar och skapar allt internt. Utan de här kanterna
-    ser sådan kod ut att sakna beroenden helt, vilket är det farligaste möjliga felet:
-    mängden utges för sluten när den inte är det."""
+    In Rust the signature carries the dependencies. In TypeScript, and especially in
+    React, it does not — a component takes no parameters and creates everything
+    internally. Without these edges, such code appears to have no dependencies at all,
+    which is the most dangerous possible failure: the set is presented as closed when it
+    is not."""
     external: str | None = None
     file: str = ""
     line: int = 0
@@ -103,7 +105,7 @@ class Footprint:
 
 @dataclass
 class Graph:
-    """Items plus de beräkningar som gör dem till ett fotavtryck."""
+    """Items plus the computations that turn them into a footprint."""
 
     name: str
     items: dict[str, Item]
@@ -115,7 +117,7 @@ class Graph:
         default_factory=dict, repr=False
     )
 
-    # -- uppslag ----------------------------------------------------------------
+    # -- lookup -----------------------------------------------------------------
 
     def get(self, item_id: str) -> Item | None:
         return self.items.get(item_id)
@@ -134,10 +136,10 @@ class Graph:
         item = self.items.get(item_id)
         return item is not None and item.external is None
 
-    # -- kontrakt ---------------------------------------------------------------
+    # -- contracts --------------------------------------------------------------
 
     def members_of(self, item_id: str, used: set[str] | None) -> list[str]:
-        """Medlemmar av en typ, filtrerade på vad koden faktiskt rör."""
+        """Members of a type, filtered to what the code actually touches."""
         item = self.items.get(item_id)
         if item is None or item.kind != TYPE:
             return []
@@ -146,10 +148,11 @@ class Graph:
         return [m for m in item.members if self.name_of(m) in used]
 
     def contract_text(self, item_id: str, used: set[str] | None = None) -> str:
-        """Det en läsare måste se av ett beroende — aldrig dess implementation.
+        """What a reader must see of a dependency — never its implementation.
 
-        Typer projiceras ner till huvudet plus de medlemmar som nämns. En bred struktur
-        man rör tre fält i kostar tre fält, inte trehundra."""
+        Types are projected down to their header plus the members that are mentioned. A
+        wide struct of which you touch three fields costs three fields, not three
+        hundred."""
         item = self.items.get(item_id)
         if item is None:
             return ""
@@ -166,26 +169,26 @@ class Graph:
         item = self.items.get(item_id)
         return item.body if item else ""
 
-    # -- slutningen -------------------------------------------------------------
+    # -- the closure ------------------------------------------------------------
 
     def surface(
         self, item_id: str, used: set[str] | None = None, include_calls: bool = False
     ) -> set[str]:
-        """Vad ett items kontrakt rör vid.
+        """What an item's contract touches.
 
-        Signaturen filtreras aldrig — de typerna måste läsaren se oavsett. Det är typernas
-        *inre* som beskärs till det som används.
+        The signature is never filtered — the reader must see those types regardless. It
+        is the types' *insides* that get pruned to what is used.
 
-        `include_calls` gäller bara den funktion som mäts. Du måste känna kontraktet för
-        det du själv anropar, men inte för det *de* anropar — där räcker deras kontrakt.
-        Det är den regeln som håller slutningen ändlig i stället för att svälla till hela
-        programmet."""
+        `include_calls` applies only to the function being measured. You must know the
+        contract of what you call yourself, but not of what *they* call — their contracts
+        suffice. That rule is what keeps the closure finite instead of swelling to the
+        whole program."""
         item = self.items.get(item_id)
         if item is None:
             return set()
         if item.kind == TYPE:
-            # Typens egna referenser är arv, implements och det ett alias pekar på —
-            # sådant hör till typen själv och beskärs inte av användning.
+            # A type's own refs are inheritance, implements, and whatever an alias points
+            # to — those belong to the type itself and are not pruned by usage.
             out: set[str] = set(item.refs)
             for member in self.members_of(item_id, used):
                 child = self.items.get(member)
@@ -198,7 +201,7 @@ class Graph:
         return surface
 
     def closure(self, root: str, used: set[str] | None = None) -> set[str]:
-        """Transitiv kontraktsslutning. Välkända items avbryter vandringen."""
+        """Transitive contract closure. Well-known items terminate the walk."""
         key = (root, frozenset(used) if used is not None else None)
         cached = self._closure_cache.get(key)
         if cached is not None:
@@ -252,14 +255,14 @@ class Graph:
             if item.kind == FUNCTION and item.external is None and item.body:
                 yield item_id
 
-    # -- beskärningsvärde -------------------------------------------------------
+    # -- pruning value ----------------------------------------------------------
 
     def pruning_value(self, item_id: str) -> int:
-        """Hur mycket slutning som hänger under ett item.
+        """How much closure hangs below an item.
 
-        Det är vad ett pålitligt kontrakt på den här platsen skulle bespara en läsare —
-        alltså var det lönar sig att dokumentera. En doc djupt ner i trädet sparar nästan
-        ingenting, eftersom man var tvungen att gå dit för att läsa den."""
+        This is what a trustworthy contract at this spot would save a reader — i.e. where
+        documenting pays off. A doc deep down the tree saves almost nothing, because you
+        had to walk there to read it."""
         below = self.closure(item_id)
         return sum(
             self.count_tokens(self.contract_text(dep))

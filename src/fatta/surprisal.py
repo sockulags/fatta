@@ -1,14 +1,14 @@
-"""Överraskningsviktning av kontrakt.
+"""Surprisal weighting of contracts.
 
-CF räknar storlek, men det som faktiskt kostar att förstå är hur *oväntat* ett kontrakt är.
-`fn len(&self) -> usize` ligger i slutningen och kostar tokens, men noll att begripa — du
-visste vad det gjorde innan du läste det. Ett kort men oförutsägbart kontrakt kostar mer.
+CF counts size, but what actually costs comprehension is how *unexpected* a contract is.
+`fn len(&self) -> usize` sits in the closure and costs tokens, but zero to grasp — you
+knew what it did before reading it. A short but unpredictable contract costs more.
 
-Måttet på det: visa en modell bara namnet och be den skriva kontraktet. Ju mer av det
-verkliga kontraktet gissningen träffar, desto mindre överraskning, desto lägre vikt.
+The measure: show a model only the name and ask it to write the contract. The more of the
+real contract the guess hits, the less surprise, the lower the weight.
 
-Det är en mätning som inte fanns innan modeller fanns — den mäter kostnaden hos exakt det
-subjekt som ska läsa koden.
+This is a measurement that did not exist before models did — it prices cost for exactly
+the subject that will read the code.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from typing import Callable, Protocol
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-# Även ett helt förutsägbart kontrakt kostar något: du måste åtminstone se att det finns.
+# Even a fully predictable contract costs something: you must at least see that it exists.
 DEFAULT_FLOOR = 0.15
 
 _WORD = re.compile(r"[A-Za-z_]\w*")
@@ -39,11 +39,12 @@ def tokens_of(text: str) -> set[str]:
 
 
 def containment(actual: str, predicted: str) -> float:
-    """Hur stor del av det verkliga kontraktet gissningen förutsåg.
+    """How much of the real contract the guess anticipated.
 
-    Riktningen är avsiktlig: vi frågar om modellen förutsåg det som faktiskt står där, inte
-    om den lät bli att hitta på extra. Att gissa brett bestraffas alltså inte, vilket är
-    rätt — en läsare som redan övervägt fler möjligheter blir inte överraskad.
+    The direction is deliberate: we ask whether the model anticipated what is actually
+    there, not whether it refrained from inventing extras. Guessing broadly is thus not
+    punished, which is right — a reader who already considered more possibilities is not
+    surprised.
     """
     real = tokens_of(actual)
     if not real:
@@ -61,7 +62,7 @@ def build_prompt(name: str, kind: str, crate: str) -> str:
 
 
 def ollama(model: str, timeout: float = 120.0) -> Predictor:
-    """Predictor mot en lokalt körande Ollama."""
+    """Predictor against a locally running Ollama."""
 
     def predict(prompt: str) -> str:
         payload = json.dumps(
@@ -83,7 +84,7 @@ def ollama(model: str, timeout: float = 120.0) -> Predictor:
 
 @dataclass
 class Weighing:
-    """Ger varje kontrakt en vikt i [floor, 1] efter hur oväntat det är."""
+    """Gives each contract a weight in [floor, 1] by how unexpected it is."""
 
     predictor: Predictor
     crate_name: str = "the crate"
@@ -110,8 +111,8 @@ class Weighing:
         try:
             predicted = self.predictor(build_prompt(name, kind, self.crate_name))
         except (urllib.error.URLError, TimeoutError, OSError, ValueError):
-            # Utan gissning finns ingen grund att rabattera: full vikt, och räkna
-            # misslyckandet så att det syns i rapporten i stället för att tyst blekna in.
+            # With no guess there is no basis for a discount: full weight, and count
+            # the failure so it shows in the report instead of fading in silently.
             self.failures += 1
             return 1.0
 
@@ -129,7 +130,7 @@ class Weighing:
 
 
 def fixed(value: float) -> Callable[[str, str, str], float]:
-    """Konstant vikt. Används av tester och som uttrycklig av-knapp."""
+    """Constant weight. Used by tests and as an explicit off switch."""
 
     def weigh(_name: str, _kind: str, _contract: str) -> float:
         return value

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Genererar rustdoc-JSON för mätkorpusen. Kräver nightly (se regen-fixture.sh).
+# Generates rustdoc JSON for the measurement corpus. Requires nightly (see regen-fixture.sh).
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,12 +10,12 @@ if [ -n "$toolchain" ]; then
 fi
 
 if ! "${cargo[@]}" --version | grep -q nightly; then
-  echo "fel: aktiv toolchain är inte nightly." >&2
+  echo "error: the active toolchain is not nightly." >&2
   exit 1
 fi
 
 cd "$repo/corpus"
-# Paketnamn exakt som på crates.io — vissa har understreck, andra bindestreck.
+# Package names exactly as on crates.io — some use underscores, others hyphens.
 for pkg in semver serde_json memchr tokio-util; do
   echo "== $pkg"
   "${cargo[@]}" rustdoc -p "$pkg" -- \
@@ -23,5 +23,5 @@ for pkg in semver serde_json memchr tokio-util; do
 done
 
 echo
-echo "JSON i corpus/target/doc/ — källor i \$CARGO_HOME/registry/src"
+echo "JSON in corpus/target/doc/ — sources in \$CARGO_HOME/registry/src"
 ls -1 target/doc/*.json

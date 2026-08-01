@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="sv">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -76,17 +76,17 @@
 <header>
   <h1>fatta</h1><span class="proj" id="proj"></span>
   <nav>
-    <button data-tab="symbol" class="on">symboler</button>
-    <button data-tab="health">testhälsa</button>
-    <button data-tab="leverage">hävstång</button>
+    <button data-tab="symbol" class="on">symbols</button>
+    <button data-tab="health">test health</button>
+    <button data-tab="leverage">leverage</button>
   </nav>
 </header>
 <main>
   <div id="side">
-    <input id="search" placeholder="filtrera symboler…" autocomplete="off">
+    <input id="search" placeholder="filter symbols…" autocomplete="off">
     <div id="symbols"></div>
   </div>
-  <div id="view"><div class="empty">Välj en symbol till vänster.</div></div>
+  <div id="view"><div class="empty">Pick a symbol on the left.</div></div>
 </main>
 <script>
 const view = document.getElementById("view");
@@ -108,7 +108,7 @@ function renderList(filter = "") {
   listEl.innerHTML = rows.slice(0, 400).map(s =>
     `<div class="row${selected === s.name + s.file ? " sel" : ""}" data-n="${esc(s.name)}" data-f="${esc(s.file)}">
        ${esc(s.name)}<span class="f">${esc(s.file)}:${s.line}</span></div>`).join("")
-    + (rows.length > 400 ? `<div class="row dim">… ${rows.length - 400} till, filtrera vidare</div>` : "");
+    + (rows.length > 400 ? `<div class="row dim">… ${rows.length - 400} more, narrow the filter</div>` : "");
 }
 
 listEl.addEventListener("click", e => {
@@ -118,14 +118,14 @@ listEl.addEventListener("click", e => {
 document.getElementById("search").addEventListener("input", e => renderList(e.target.value));
 document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
-  ({ symbol: () => { view.innerHTML = '<div class="empty">Välj en symbol till vänster.</div>'; },
+  ({ symbol: () => { view.innerHTML = '<div class="empty">Pick a symbol on the left.</div>'; },
      health: showHealth, leverage: showLeverage })[b.dataset.tab]();
 }));
 
 async function openSymbol(name, file) {
   selected = name + (file || "");
   renderList(document.getElementById("search").value);
-  view.innerHTML = `<div class="empty">hämtar ${esc(name)}…</div>`;
+  view.innerHTML = `<div class="empty">fetching ${esc(name)}…</div>`;
   const [know, tests] = await Promise.all([
     api("what_must_i_know", { symbol: name }),
     api("which_tests_pin", { symbol: name, file_hint: file }),
@@ -136,23 +136,23 @@ async function openSymbol(name, file) {
   let html = `<h2>${esc(name)} <span class="dim">${esc(one.at || "")}</span></h2>`;
   if (one.cost) {
     html += `<div class="cost">
-      <div><b>${one.cost.cf}</b><span>CF totalt</span></div>
-      <div><b>${one.cost.own_body}</b><span>egen kropp</span></div>
-      <div><b>${one.cost.closure}</b><span>slutning</span></div>
-      <div><b>${one.cost.lines}</b><span>rader</span></div></div>`;
+      <div><b>${one.cost.cf}</b><span>CF total</span></div>
+      <div><b>${one.cost.own_body}</b><span>own body</span></div>
+      <div><b>${one.cost.closure}</b><span>closure</span></div>
+      <div><b>${one.cost.lines}</b><span>lines</span></div></div>`;
     html += one.bounded
-      ? `<span class="tag ok">avgränsad — det här är allt</span>`
-      : `<span class="tag warn">ej avgränsad</span>`;
+      ? `<span class="tag ok">bounded — this is everything</span>`
+      : `<span class="tag warn">not bounded</span>`;
   }
   const pins = tests.tests || [];
-  html += `<h2>tester som spikar beteendet (${pins.length})</h2>`;
-  if (!pins.length) html += `<div class="card"><span class="tag bad">ospecificerat</span> Inget test bryts om beteendet ändras.</div>`;
+  html += `<h2>tests pinning the behavior (${pins.length})</h2>`;
+  if (!pins.length) html += `<div class="card"><span class="tag bad">unspecified</span> No test breaks if the behavior changes.</div>`;
   for (const t of pins) {
     html += `<div class="card"><b>${esc(t.name)}</b><div class="at">${esc(t.file)}:${t.line}</div>`;
-    if (t.mocked?.length) html += `<div class="mock">mockat: ${t.mocked.map(esc).join(", ")}</div>`;
+    if (t.mocked?.length) html += `<div class="mock">mocked: ${t.mocked.map(esc).join(", ")}</div>`;
     html += (t.assertions || []).map(a => `<div class="assert">${esc(a)}</div>`).join("") + `</div>`;
   }
-  html += `<h2>måste förstås (${(one.must_know || []).length})</h2>`;
+  html += `<h2>must be understood (${(one.must_know || []).length})</h2>`;
   for (const d of one.must_know || []) {
     html += `<div class="card"><span class="sym" data-n="${esc(d.name)}">${esc(d.name)}</span>
       <span class="dim">${esc(d.kind)}</span><div class="at">${esc(d.at)}</div>
@@ -164,35 +164,35 @@ async function openSymbol(name, file) {
 }
 
 async function showHealth() {
-  view.innerHTML = `<div class="empty">analyserar testsviten…</div>`;
+  view.innerHTML = `<div class="empty">analyzing the test suite…</div>`;
   const h = await api("test_health");
   if (h.error) { view.innerHTML = `<div class="empty">${esc(h.error)}</div>`; return; }
-  let html = `<h2>fabrikationssignaler (${h.findings.length})</h2>`;
+  let html = `<h2>fabrication signals (${h.findings.length})</h2>`;
   for (const f of h.findings.slice(0, 40)) {
     html += `<div class="card"><span class="tag ${f.score >= 6 ? "bad" : "warn"}">${f.score}p</span>
       <b>${esc(f.name)}</b><div class="at">${esc(f.file)}:${f.line}</div>
       ${f.reasons.map(r => `<div class="assert">${esc(r)}</div>`).join("")}</div>`;
   }
-  html += `<h2>lagade utan måländring (churn)</h2>`;
+  html += `<h2>fixed without target changes (churn)</h2>`;
   html += h.churn.length
-    ? `<table><tr><th>ensam</th><th>totalt</th><th>fil</th></tr>` +
+    ? `<table><tr><th>alone</th><th>total</th><th>file</th></tr>` +
       h.churn.map(c => `<tr><td>${c.test_only}</td><td>${c.total}</td><td>${esc(c.file)}</td></tr>`).join("") + `</table>`
-    : `<div class="dim">inga.</div>`;
+    : `<div class="dim">none.</div>`;
   view.innerHTML = html;
 }
 
 async function showLeverage() {
-  view.innerHTML = `<div class="empty">räknar…</div>`;
+  view.innerHTML = `<div class="empty">computing…</div>`;
   const l = await api("doc_leverage", { limit: 30 });
-  view.innerHTML = `<h2>var ett kontrakt sparar mest läsning</h2>
-    <table><tr><th>sparar (tokens)</th><th>symbol</th><th>var</th></tr>` +
+  view.innerHTML = `<h2>where a contract saves the most reading</h2>
+    <table><tr><th>saves (tokens)</th><th>symbol</th><th>where</th></tr>` +
     l.ranked.map(r => `<tr><td>${r.would_prune}</td><td>${esc(r.name)}</td><td class="dim">${esc(r.at)}</td></tr>`).join("") +
     `</table>`;
 }
 
 api("list_symbols").then(d => {
   symbols = d.symbols || [];
-  document.getElementById("proj").textContent = `${symbols.length} symboler`;
+  document.getElementById("proj").textContent = `${symbols.length} symbols`;
   renderList();
 });
 </script>

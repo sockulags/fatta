@@ -1,41 +1,43 @@
-# Tvillingexperimentet
+# The twin experiment
 
-Samma todo-backend byggd två gånger, för att göra arkitekturpåståendet till en siffra:
-**är en enhetlig struktur billigare att förstå än en skiktad?**
+The same todo backend built twice, to turn an architecture claim into a number:
+**is a uniform structure cheaper to understand than a layered one?**
 
-- `conformance/` — kontraktet och sviten båda måste klara. Delade typer, delade regler,
-  delade tester.
-- `layered/` — den konventionella företagsstacken: api över service över repository, med
-  en egen typfamilj per nivå (rader, entiteter, transportobjekt) och mappare emellan.
-- `uniform/` — en enda nodtyp. Listor är noder, todos är noder, deluppgifter är noder.
-  Operationerna är rekursiva funktioner över noder.
+- `conformance/` — the contract and the suite both must pass. Shared types, shared rules,
+  shared tests.
+- `layered/` — the conventional enterprise stack: api over service over repository, with
+  a distinct type family per level (rows, entities, transport objects) and mappers in
+  between.
+- `uniform/` — a single node type. Lists are nodes, todos are nodes, subtasks are nodes.
+  The operations are recursive functions over nodes.
 
-Båda lagrar i SQLite och beror på exakt samma crates. Skillnaden mellan dem är strukturen
-och ingenting annat — det är hela poängen med att ha en delad konformanssvit: klarar båda
-den är de funktionellt utbytbara, och då är det bara formen som skiljer.
+Both store in SQLite and depend on exactly the same crates. The difference between them is
+the structure and nothing else — that is the whole point of the shared conformance suite:
+if both pass it they are functionally interchangeable, and only the shape differs.
 
-## Domänen
+## The domain
 
-Tillräckligt med struktur för att skiktning ska kosta något, tillräckligt litet för att
-rymmas i huvudet: listor som innehåller todos, todos som kan ha deluppgifter i godtyckligt
-djup, taggar, förfallodatum, och sökning som kombinerar filter.
+Enough structure for layering to cost something, small enough to hold in your head: lists
+containing todos, todos with subtasks at arbitrary depth, tags, due dates, and search
+combining filters.
 
-Den bärande regeln är rekursiv: **en todo får inte markeras klar så länge någon efterföljare
-är öppen**. Den tvingar båda implementationerna att gå igenom hela subträdet, vilket är där
-skillnaden mellan "samma sorts barn" och "en ny sorts sak per nivå" faktiskt märks.
+The load-bearing rule is recursive: **a todo may not be marked done while any descendant
+is open**. It forces both implementations to walk the whole subtree, which is where the
+difference between "children of the same kind" and "a new kind of thing per level"
+actually shows.
 
-## Bygga
+## Building
 
-Kräver en C-kompilator eftersom `rusqlite` bygger SQLite från källa. Den som följer med
-rustups gnu-toolchain duger inte — den kan bara länka. På den här maskinen ligger en
-användbar i WinLibs:
+Requires a C compiler because `rusqlite` builds SQLite from source. The one that ships
+with rustup's gnu toolchain is not enough — it can only link. On this machine a usable one
+lives in WinLibs:
 
 ```bash
 export PATH="/c/Users/lucas/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.POSIX.MSVCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin:$PATH"
 cargo test
 ```
 
-## Mäta
+## Measuring
 
 ```bash
 cargo rustdoc -p layered -- -Zunstable-options --output-format json --document-private-items
@@ -43,16 +45,17 @@ cargo rustdoc -p uniform -- -Zunstable-options --output-format json --document-p
 uv run fatta scan experiment/target/doc/layered.json --src-root experiment
 ```
 
-Spans i ett workspace är relativa till workspace-roten, inte till paketet — därav
+Spans in a workspace are relative to the workspace root, not the package — hence
 `--src-root experiment`.
 
-## Utfall (2026-08-01)
+## Outcome (2026-08-01)
 
-Parvis per operation, alltså samma beteende jämfört mot sig självt. Kropp är funktionens
-egen text, slutning är vad man måste läsa utöver den. Skiktade varianten delar flera
-operationer över api- och service-nivån, så alla funktioner med samma namn summeras.
+Paired per operation, i.e. the same behavior compared against itself. Body is the
+function's own text, closure is what must be read beyond it. The layered variant splits
+several operations across the api and service levels, so all functions sharing a name are
+summed.
 
-| operation | skiktad kropp | skiktad slutning | enhetlig kropp | enhetlig slutning |
+| operation | layered body | layered closure | uniform body | uniform closure |
 |---|---|---|---|---|
 | create_list | 176 | 895 | 50 | 148 |
 | add | 281 | 797 | 256 | 273 |
@@ -62,49 +65,53 @@ operationer över api- och service-nivån, så alla funktioner med samma namn su
 | move_under | 268 | 542 | 192 | 154 |
 | tree | 170 | 452 | 59 | 60 |
 | search | 232 | 511 | 158 | 110 |
-| **summa** | **1424** | **4289** | **937** | **1146** |
+| **total** | **1424** | **4289** | **937** | **1146** |
 
-Kropparna skiljer 1,5 gånger. **Slutningarna skiljer 3,7 gånger.** Skillnaden sitter alltså
-inte i hur mycket kod som skrivits utan i hur mycket annat man måste kunna för att läsa den.
+The bodies differ by 1.5×. **The closures differ by 3.7×.** The difference sits not in how
+much code was written but in how much else you must know to read it.
 
-### Rättelse (2026-08-01, senare samma dag)
+### Correction (2026-08-01, later the same day)
 
-Först rapporterades 9,6 gånger, och att den enhetliga slutningen var konstant över
-operationerna. Bägge byggde på en modell som bara följde beroenden genom **signaturer** och
-struntade i vad kroppen anropar. Den brast uppenbart i TypeScript — en React-komponent tar
-inga parametrar och såg därför ut att sakna beroenden helt — men den var lika fel i Rust,
-bara mindre synligt eftersom Rust-signaturer bär mer.
+The first report said 9.6×, and that the uniform closure was constant across operations.
+Both rested on a model that only followed dependencies through **signatures** and ignored
+what the body calls. That failed visibly in TypeScript — a React component takes no
+parameters and thus appeared to have no dependencies at all — but it was equally wrong in
+Rust, just less visibly, because Rust signatures carry more.
 
-Med anrop inräknade står riktningen kvar men magnituden mer än halveras, och konstansen
-försvinner: den var en artefakt av att modellen inte såg vad koden gjorde.
+With calls included the direction stands but the magnitude more than halves, and the
+constancy disappears: it was an artifact of the model not seeing what the code did.
 
-En asymmetri att känna till: TypeScript-frontenden löser upp anrop med tsc:s typcheckare,
-medan Rust-frontenden matchar namn mot källtexten eftersom rustdoc-JSON saknar kroppar.
-Namnmatchning överskattar, och troligen mest i den skiktade varianten som har fler distinkta
-namn. Ett par tiondelar av kvoten ovan är förmodligen den effekten snarare än struktur.
+An asymmetry worth knowing: the TypeScript frontend resolves calls with tsc's type
+checker, while the Rust frontend matches names against the source text because rustdoc
+JSON has no bodies. Name matching overestimates, and probably most in the layered variant,
+which has more distinct names. A few tenths of the ratio above is likely that effect
+rather than structure.
 
-## Varför siffran inte ska övertolkas
+## Why the number should not be over-read
 
-**n = 1, och samma person skrev båda.** Jag kände hypotesen medan jag skrev. Att den
-skiktade varianten omedvetet blivit tyngre går inte att utesluta. Det som talar emot är att
-båda klarar identiska tester, att median-LOC är 6 i båda, och att kropparna bara skiljer
-1,5 gånger — hade jag bara skrivit mer kod i den ena hade den skillnaden varit större.
+**n = 1, and the same author wrote both.** I knew the hypothesis while writing. That the
+layered variant unconsciously grew heavier cannot be ruled out. Against it: both pass
+identical tests, median LOC is 6 in both, and the bodies differ only 1.5× — had I simply
+written more code in one, that gap would be larger.
 
-**CF är fortfarande en oprövad proxy.** Måttet har aldrig visats förutsäga att en modell
-faktiskt misslyckas. Det här mäter slutningens storlek, inte svårighet.
+**CF is still an untested proxy.** The metric has never been shown to predict that a model
+actually fails. This measures closure size, not difficulty. (The later A/B/C experiment in
+`ab/RESULTS.md` confirmed the caution: CF did not predict outcomes.)
 
-**Den enhetliga varianten koncentrerar komplexiteten.** Dess tyngsta funktion, `store::load`
-på 482, är värre än den skiktades värsta på 308 — men av kroppslängd, inte av slutning.
+**The uniform variant concentrates complexity.** Its heaviest function, `store::load` at
+482, is worse than the layered variant's worst at 308 — but from body length, not closure.
 
-**Och det allvarligaste: CF ser inte vad man gav upp.** Den enhetliga varianten kastade
-statiska garantier — `done` är strängen `"1"` — och det sänker slutningen utan att kosta
-något i måttet. Optimerar man CF rakt av är den degenererade lösningen `fn do(x: &str) ->
-String` överallt, med slutning noll. **CF belönar alltså precis det som gör verifiering
-svårare**, och får därför aldrig bli ett optimeringsmål utan en motvikt som mäter garantier.
+**And most seriously: CF does not see what was given up.** The uniform variant discarded
+static guarantees — `done` is the string `"1"` — and that lowers the closure at no cost in
+the metric. Optimize CF directly and the degenerate solution is `fn do(x: &str) -> String`
+everywhere, closure zero. **CF rewards exactly what makes verification harder**, and must
+therefore never become an optimization target without a counterweight measuring
+guarantees.
 
-## Vad som redan syns utan mätning
+## What is visible without measuring
 
-Den enhetliga varianten betalar sitt pris i `store.rs`: med attribut som rader i stället för
-kolumner slutar schemat bära mening, och kompilatorn slutar kontrollera den. `done` är
-strängen `"1"`, inte en bool. Det är exakt den avvägning som förutspåddes — uniformitet köps
-med statiska garantier — och den syns här i miniatyr innan något större byggts på den.
+The uniform variant pays its price in `store.rs`: with attributes as rows rather than
+columns, the schema stops carrying meaning and the compiler stops checking it. `done` is
+the string `"1"`, not a bool. That is exactly the predicted trade — uniformity is bought
+with static guarantees — and it shows here in miniature before anything larger is built on
+top of it.

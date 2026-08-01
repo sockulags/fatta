@@ -1,12 +1,12 @@
-//! Sondkrets med känt facit.
+//! Probe crate with a known answer key.
 //!
-//! Innehåller ett medvetet par: en kort funktion med stort fotavtryck och en längre
-//! funktion med litet. Radantal rankar dem i motsatt ordning mot CF, vilket är precis
-//! den inversion måttet finns för att fånga.
+//! Contains a deliberate pair: a short function with a large footprint and a longer
+//! function with a small one. Line count ranks them in the opposite order from CF,
+//! which is exactly the inversion the metric exists to catch.
 
 use serde::Serialize;
 
-/// Var i pipelinen ett fel uppstod.
+/// Where in the pipeline an error occurred.
 #[derive(Debug, Serialize)]
 pub enum Stage {
     Parse,
@@ -14,14 +14,14 @@ pub enum Stage {
     Emit,
 }
 
-/// Justerbara gränser för analysen.
+/// Tunable limits for the analysis.
 #[derive(Debug, Serialize)]
 pub struct Limits {
     pub max_depth: u32,
     pub max_items: usize,
 }
 
-/// Hela körningens konfiguration.
+/// The whole run's configuration.
 #[derive(Debug, Serialize)]
 pub struct Config {
     pub name: String,
@@ -30,21 +30,21 @@ pub struct Config {
 }
 
 impl Config {
-    /// Metod i ett impl-block. Sådana saknas i rustdocs `paths` och är därför lätta att
-    /// tappa bort — i riktig kod är de merparten av alla funktioner.
+    /// A method in an impl block. These are absent from rustdoc's `paths` and thus easy
+    /// to lose — in real code they are the majority of all functions.
     pub fn depth(&self) -> u32 {
         self.limits.max_depth
     }
 }
 
-/// Rapport från en körning.
+/// A report from one run.
 #[derive(Debug, Serialize)]
 pub struct Report {
     pub visited: usize,
     pub skipped: Vec<String>,
 }
 
-/// Kort kropp, stort fotavtryck: signaturen drar in Config -> Limits -> Stage och Report.
+/// Short body, large footprint: the signature pulls in Config -> Limits -> Stage and Report.
 pub fn run(cfg: &Config) -> Result<Report, String> {
     if cfg.limits.max_depth == 0 {
         return Err(format!("{} har djup 0", cfg.name));
@@ -52,7 +52,7 @@ pub fn run(cfg: &Config) -> Result<Report, String> {
     Ok(Report { visited: cfg.limits.max_items, skipped: Vec::new() })
 }
 
-/// Bred post. En anropare rör typiskt ett par fält, aldrig alla.
+/// A wide record. A caller typically touches a couple of fields, never all of them.
 #[derive(Debug, Serialize)]
 pub struct Wide {
     pub alpha: u32,
@@ -67,17 +67,17 @@ pub struct Wide {
     pub kappa: u64,
 }
 
-/// Öppnar den breda posten men läser bara ett fält.
+/// Opens the wide record but reads only one field.
 pub fn peek(wide: &Wide) -> u32 {
     wide.alpha
 }
 
-/// Skickar den breda posten vidare utan att öppna den alls.
+/// Forwards the wide record without opening it at all.
 pub fn forward(wide: Wide) -> Wide {
     wide
 }
 
-/// Längre kropp, inget fotavtryck: allt i signaturen är std och kostar därför noll.
+/// Longer body, no footprint: everything in the signature is std and thus costs zero.
 pub fn checksum(bytes: &[u8]) -> u64 {
     if bytes.is_empty() {
         return 0;

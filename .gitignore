@@ -5,8 +5,8 @@ __pycache__/
 target/
 out/
 
-# Cargo.lock checkas in med flit: korpusens versioner måste vara pinnade för att
-# mätningar ska gå att jämföra mellan körningar.
+# Cargo.lock is committed on purpose: the corpus versions must be pinned for
+# measurements to be comparable across runs.
 
-# Cachade överraskningsvikter är maskinlokala
+# Cached surprisal weights are machine-local
 .fatta-surprisal.json

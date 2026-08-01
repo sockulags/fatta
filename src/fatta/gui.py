@@ -1,8 +1,8 @@
-"""Lokalt GUI över samma dispatch som MCP-servern.
+"""Local GUI over the same dispatch as the MCP server.
 
-GUI:t är en tunn HTTP-yta: `POST /api {name, arguments}` går rakt in i `server.dispatch`,
-alltså exakt samma operationer som en agent når via MCP. En förmåga, två transporter —
-läggs ett verktyg till i dispatchen finns det i båda.
+The GUI is a thin HTTP surface: `POST /api {name, arguments}` goes straight into
+`server.dispatch`, i.e. exactly the operations an agent reaches via MCP. One capability,
+two transports — add a tool to the dispatch and it exists in both.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ class Handler(BaseHTTPRequestHandler):
     tmap = None
     repo = "."
 
-    def log_message(self, *args) -> None:  # tyst — terminalen är inte loggfil
+    def log_message(self, *args) -> None:  # quiet — the terminal is not a log file
         pass
 
     def _send(self, status: int, body: bytes, ctype: str) -> None:
@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
             answer = mcp.dispatch(self.graph, request.get("name", ""), arguments, self.tmap)
             body = json.dumps(answer.payload, ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
-        except Exception as err:  # GUI:t ska visa felet, inte dö
+        except Exception as err:  # the GUI should show the error, not die
             body = json.dumps({"error": str(err)}, ensure_ascii=False).encode()
             self._send(500, body, "application/json; charset=utf-8")
 
@@ -67,7 +67,7 @@ def serve_gui(
     Handler.repo = repo
     httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{port}"
-    print(f"fatta gui: {url}  (avsluta med Ctrl+C)")
+    print(f"fatta gui: {url}  (stop with Ctrl+C)")
     if open_browser:
         webbrowser.open(url)
     try:

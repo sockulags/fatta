@@ -1,4 +1,4 @@
-"""Tester för MCP-servern. Transporten testas via handle(), inte via en riktig process."""
+"""Tests for the MCP server. The transport is tested via handle(), not a real process."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from fatta.graph import FUNCTION, MEMBER, TYPE, Graph, Item
 
 
 def tiny_graph() -> Graph:
-    """En liten kodbas: en funktion som rör en typ, som i sin tur rör en okänd extern."""
+    """A tiny codebase: a function touching a type that in turn touches an unknown external."""
     items = {
         "f": Item(
             id="f",
@@ -67,8 +67,8 @@ def test_allt_bar_harkomst() -> None:
 
 
 def test_okand_extern_gor_mangden_oavgransad() -> None:
-    """Att tiga om ett paket vi saknar graf för vore att utge mängden för sluten när den
-    inte är det — och då slutar agenten läsa på fel ställe."""
+    """Staying silent about a package we lack a graph for would pass the set off as
+    closed when it is not — and the agent would stop reading in the wrong place."""
     graph = tiny_graph()
     graph.items["T"] = Item(
         id="T", name="Config", kind=TYPE, contract="struct Config", refs=("X",)
@@ -118,8 +118,8 @@ def test_tools_list_beskriver_verktygen() -> None:
 
 
 def test_which_tests_pin_utan_karta_ger_fel_inte_tomt_svar() -> None:
-    """Utan karta får svaret inte se ut som "inga tester finns" — det vore att utge
-    ospecificerat beteende där mätningen bara saknas."""
+    """Without a map the answer must not look like "no tests exist" — that would report
+    unspecified behavior where only the measurement is missing."""
     payload = call(tiny_graph(), "which_tests_pin", {"symbol": "handle"})
 
     assert "error" in payload
@@ -133,7 +133,7 @@ def test_initialize_svarar_med_protokollversion() -> None:
 
 
 def test_notifiering_besvaras_inte() -> None:
-    """En notifiering saknar id. Svarar man på den bryter man JSON-RPC."""
+    """A notification has no id. Answering it breaks JSON-RPC."""
     assert server.handle(tiny_graph(), {"method": "notifications/initialized"}) is None
 
 
@@ -162,8 +162,8 @@ def test_trasig_rad_kraschar_inte_servern() -> None:
 
 
 def test_kroppens_anrop_hor_till_mangden() -> None:
-    """En React-komponent tar inga parametrar och bygger allt internt. Utan kroppens
-    kanter ser sådan kod ut att sakna beroenden — det farligaste möjliga felet."""
+    """A React component takes no parameters and builds everything internally. Without
+    body edges such code appears dependency-free — the most dangerous possible failure."""
     graph = tiny_graph()
     graph.items["f"] = Item(
         id="f",
@@ -185,8 +185,8 @@ def test_kroppens_anrop_hor_till_mangden() -> None:
 
 
 def test_anropens_anrop_foljs_inte() -> None:
-    """Du måste känna kontraktet för det du själv anropar, men inte för det *de*
-    anropar — annars sväller slutningen till hela programmet."""
+    """You must know the contract of what you call yourself, but not of what *they*
+    call — otherwise the closure swells to the whole program."""
     graph = tiny_graph()
     graph.items["f"] = Item(
         id="f", name="handle", kind=FUNCTION, contract="fn handle()",

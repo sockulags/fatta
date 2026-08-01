@@ -1,4 +1,4 @@
-"""Tester för överraskningsviktningen. Ingen modell körs — predictorn är en attrapp."""
+"""Tests for surprisal weighting. No model runs — the predictor is a dummy."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fatta.surprisal import Weighing, build_prompt, containment, fixed, tokens_o
 
 
 def echo(text: str):
-    """Predictor som alltid gissar exakt `text`."""
+    """A predictor that always guesses exactly `text`."""
     return lambda _prompt: text
 
 
@@ -38,8 +38,8 @@ def test_delvis_traff_hamnar_emellan() -> None:
 
 
 def test_containment_fragar_om_det_verkliga_forutsags() -> None:
-    """Att gissa brett ska inte straffas — en läsare som redan övervägt fler
-    möjligheter blir inte överraskad."""
+    """Guessing broadly must not be punished — a reader who already considered more
+    possibilities is not surprised."""
     brett = containment("fn len(&self) -> usize", "fn len(&self) -> usize or isize or u8")
     smalt = containment("fn len(&self) -> usize", "fn len")
 
@@ -54,8 +54,8 @@ def test_tomt_kontrakt_kostar_full_vikt() -> None:
 
 
 def test_trasig_predictor_ger_full_vikt_och_raknas() -> None:
-    """Ett tyst nollresultat vore värre än inget: då hade en oåtkomlig modell sett ut
-    som att all kod plötsligt blivit självklar."""
+    """A silent zero would be worse than nothing: an unreachable model would look like
+    all code suddenly became obvious."""
 
     def broken(_prompt: str) -> str:
         raise OSError("ingen modell")
@@ -84,7 +84,7 @@ def test_vikter_cachas_och_overlever_omstart(tmp_path) -> None:
 
 
 def test_prompten_avslojar_inte_kontraktet() -> None:
-    """Ges kontraktet bort i frågan mäter man ingenting."""
+    """If the prompt gives the contract away, nothing is measured."""
     prompt = build_prompt("parse_config", "function", "cfprobe")
 
     assert "parse_config" in prompt and "cfprobe" in prompt

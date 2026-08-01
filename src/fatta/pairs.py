@@ -1,9 +1,9 @@
-"""Urval och rendering av blinda granskningspar.
+"""Selection and rendering of blind review pairs.
 
-Ett slumpurval av moduler säger nästan ingenting, eftersom CF och radantal är överens i de
-flesta fall. Det som avgör vilket mått som bär är fallen där de rankar **tvärtom**. Modulen
-plockar fram dem, parar ihop dem, och renderar paren utan poäng så att bedömaren inte kan
-rationalisera fram rätt svar.
+A random sample of modules says almost nothing, because CF and line count agree in most
+cases. What decides which metric carries are the cases where they rank in **opposite**
+order. This module extracts them, pairs them up, and renders the pairs without scores so
+the reviewer cannot rationalize their way to the right answer.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from itertools import combinations
 
 from .graph import Footprint, Graph, used_names
 
-# Under dessa gränser är skillnaderna brus snarare än signal.
+# Below these thresholds the differences are noise rather than signal.
 MIN_LOC = 4
 MIN_CF = 40
 
@@ -23,18 +23,18 @@ MIN_CF = 40
 class Pair:
     crate: str
     heavier: Footprint
-    """Den funktion CF rankar som tyngre."""
+    """The function CF ranks as heavier."""
     lighter: Footprint
     disagrees: bool
-    """Sant när radantal rankar paret i motsatt ordning mot CF."""
+    """True when line count ranks the pair in the opposite order from CF."""
     strength: float
 
     @property
     def flipped(self) -> bool:
-        """Om den tyngre funktionen ska visas som B i stället för A.
+        """Whether the heavier function is shown as B instead of A.
 
-        Avgörs deterministiskt av innehållet så att en pack alltid ser likadan ut, men
-        utan att ordningen bär information om vilken som är vilken.
+        Determined deterministically from the content so a pack always looks the same,
+        without the order carrying information about which is which.
         """
         seed = f"{self.crate}:{self.heavier.name}:{self.lighter.name}".encode()
         return hashlib.sha256(seed).digest()[0] % 2 == 1
@@ -48,9 +48,9 @@ class Pair:
         return "B" if self.flipped else "A"
 
     def loc_label(self) -> str:
-        """Vilken av A och B radantal pekar ut som svårast.
+        """Which of A and B line count singles out as hardest.
 
-        Vid oenighet är det per definition den CF rankar som lättare."""
+        On disagreement it is by definition the one CF ranks as lighter."""
         return other_label(self.heavier_label()) if self.disagrees else self.heavier_label()
 
 
@@ -79,8 +79,8 @@ def candidates(crate_name: str, footprints: list[Footprint]) -> list[Pair]:
                 heavier=heavier,
                 lighter=lighter,
                 disagrees=heavier.loc < lighter.loc,
-                # Båda gapen måste vara stora för att paret ska säga något; det svagaste
-                # av dem sätter därför styrkan.
+                # Both gaps must be large for the pair to say anything; the weaker of
+                # the two therefore sets the strength.
                 strength=min(cf_gap, loc_gap),
             )
         )
@@ -88,12 +88,13 @@ def candidates(crate_name: str, footprints: list[Footprint]) -> list[Pair]:
 
 
 def pick(pool: list[Pair], count: int, used: set[str]) -> list[Pair]:
-    """Urval spritt över hela styrkespannet, med varje funktion i högst ett par.
+    """Selection spread across the whole strength range, each function in at most one pair.
 
-    Rent girigt urval på styrka ger bara ytterligheterna, och de är en egen sorts kod:
-    korta delegerande omslag med enorm slutning. Ett par sådana hör hemma i packen, men
-    tolv gör den till ett test av omslag i stället för av oenighet. Poolen delas därför i
-    lika många band som par ska väljas, och det starkaste tillgängliga tas ur varje band.
+    Purely greedy selection by strength yields only the extremes, and they are their own
+    kind of code: short delegating wrappers with enormous closures. A couple of those
+    belong in the pack, but twelve make it a test of wrappers rather than of
+    disagreement. The pool is therefore split into as many bands as pairs to pick, and
+    the strongest available is taken from each band.
     """
     ranked = sorted(pool, key=lambda p: -p.strength)
     if not ranked or count < 1:
@@ -131,10 +132,10 @@ def select(
 
 
 def contract_block(crate: Graph, item_id: str) -> str:
-    """Kontraktsgrannskapet, sorterat på namn.
+    """The contract neighborhood, sorted by name.
 
-    Sorteringen är medvetet alfabetisk och inte på storlek — storleksordning skulle läcka
-    just det måttet som ska hållas dolt.
+    The sort is deliberately alphabetical rather than by size — size order would leak
+    exactly the metric that must stay hidden.
     """
     used = used_names(crate.body_text(item_id)) if crate.use_directed else None
     deps = sorted(
@@ -143,20 +144,20 @@ def contract_block(crate: Graph, item_id: str) -> str:
     )
     texts = [t for t in (crate.contract_text(dep, used) for dep in deps) if t]
     if not texts:
-        return "_Inga lokala beroenden — allt i signaturen är välkänt._"
+        return "_No local dependencies — everything in the signature is well known._"
     return "```rust\n" + "\n\n".join(texts) + "\n```"
 
 
 def render_pair(crate: Graph, pair: Pair, number: int) -> str:
     first, second = pair.as_shown()
     lines = [
-        f"# Par {number:02d} — {pair.crate}",
+        f"# Pair {number:02d} — {pair.crate}",
         "",
-        "Vilken av A och B skulle vara svårast att skriva om korrekt från grunden, om du",
-        "bara hade dess signatur och kontraktsgrannskapet nedan att gå på?",
+        "Which of A and B would be hardest to reimplement correctly from scratch, given",
+        "only its signature and the contract neighborhood below?",
         "",
-        "Svara A eller B i granskningsarket. Titta inte i `facit.json` förrän alla par är",
-        "besvarade.",
+        "Answer A or B in the review sheet. Do not open the answer key until every pair",
+        "is answered.",
         "",
     ]
     for label, footprint in (("A", first), ("B", second)):
@@ -167,7 +168,7 @@ def render_pair(crate: Graph, pair: Pair, number: int) -> str:
             crate.body_text(footprint.item_id),
             "```",
             "",
-            f"### Kontraktsgrannskap för {label}",
+            f"### Contract neighborhood for {label}",
             "",
             contract_block(crate, footprint.item_id),
             "",
@@ -177,27 +178,28 @@ def render_pair(crate: Graph, pair: Pair, number: int) -> str:
 
 def render_sheet(pairs: list[tuple[int, Pair]]) -> str:
     lines = [
-        "# Granskningsark",
+        "# Review sheet",
         "",
-        "Fyll i ett svar per par innan du öppnar facit. Skriv A eller B.",
+        "Fill in one answer per pair before opening the answer key. Write A or B.",
         "",
-        "| Par | Crate | Ditt svar |",
+        "| Pair | Crate | Your answer |",
         "|---|---|---|",
     ]
     lines += [f"| {n:02d} | {p.crate} | |" for n, p in pairs]
     lines += [
         "",
-        "## Protokoll",
+        "## Protocol",
         "",
-        "Frågan är vilken funktion som vore svårast att **skriva om korrekt** givet bara",
-        "signaturen och kontraktsgrannskapet — inte vilken som är längst, snyggast eller",
-        "mest komplicerad att läsa rad för rad.",
+        "The question is which function would be hardest to **reimplement correctly**",
+        "given only the signature and the contract neighborhood — not which is longest,",
+        "prettiest, or most intricate to read line by line.",
         "",
-        "Paren är valda där CF och radantal rankar tvärtom, plus några kontrollpar där de",
-        "är överens. Kontrollerna finns för att fånga om svaren är slumpmässiga: är även de",
-        "ungefär hälften rätt bär inget av måtten, och då säger oenigheterna inget heller.",
+        "The pairs are chosen where CF and line count rank in opposite order, plus a few",
+        "control pairs where they agree. The controls catch random answering: if they too",
+        "land around half right, neither metric carries, and the disagreements say",
+        "nothing either.",
         "",
-        "Utvärdera med `fatta score granskning/facit.json <dina svar>`.",
+        "Evaluate with `fatta score review/facit.json <your answers>`.",
     ]
     return "\n".join(lines)
 

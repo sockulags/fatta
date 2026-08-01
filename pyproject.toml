@@ -1,7 +1,7 @@
 [project]
 name = "fatta"
 version = "0.1.0"
-description = "Mäter förståelsefotavtryck (CF) för Rust-kod ur rustdoc-JSON"
+description = "Comprehension footprint (CF) and test maps for codebases"
 requires-python = ">=3.11"
 dependencies = []
 

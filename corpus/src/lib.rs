@@ -1,1 +1,1 @@
-//! Tomt skal. Finns bara för att ge cargo en beroendegraf att generera rustdoc-JSON ur.
+//! Empty shell. Exists only to give cargo a dependency graph to generate rustdoc JSON from.

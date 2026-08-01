@@ -1,9 +1,9 @@
-"""Testkartan: funktion → testerna som spikar dess beteende.
+"""The test map: function → the tests that pin its behavior.
 
-A/B/C-mätningen visade att det som avgör om en agent lyckas ändra en funktion inte är
-kodförståelse utan om beteendespecifikationen går att hitta — och den bor i testerna,
-ofta som enda plats. Kartan gör den slagbar: för en symbol, vilka tester rör den, och
-vad hävdar de ordagrant.
+The A/B/C experiment showed that what decides whether an agent succeeds in changing a
+function is not code comprehension but whether the behavioral specification can be found —
+and it lives in the tests, often as the only place. The map makes it queryable: for a
+symbol, which tests touch it, and what do they claim verbatim.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class TestMap:
                 self._by_name.setdefault(target["name"], []).append(test)
 
     def pinning(self, symbol: str, file_filter: str | None = None) -> list[TestCase]:
-        """Testerna som rör `symbol`, hårdast först (flest assertions)."""
+        """The tests touching `symbol`, hardest first (most assertions)."""
         found = self._by_name.get(symbol, [])
         if file_filter:
             found = [
@@ -63,10 +63,10 @@ class TestMap:
         file_filter: str | None = None,
         target_file: str | None = None,
     ) -> list[str]:
-        """Testfilerna, rankade på hur många av deras tester som rör symbolen.
+        """The test files, ranked by how many of their tests touch the symbol.
 
-        Symbolträffar väger tyngre än filträffar: ett test som anropar funktionen är
-        starkare belägg än ett som bara läser dess källfil."""
+        Symbol hits weigh more than file hits: a test that calls the function is stronger
+        evidence than one that merely reads its source file."""
         counts: dict[str, int] = {}
         for test in self.pinning(symbol, file_filter):
             counts[test.file] = counts.get(test.file, 0) + 10
@@ -83,11 +83,11 @@ class TestMap:
     def judge_files_via_graph(
         self, symbol: str, target_file: str, graph, max_depth: int = 3
     ) -> list[str]:
-        """Domarkandidater genom produktionskedjan.
+        """Judge candidates through the production chain.
 
-        Ett test som spikar en anropare spikar transitivt det anropade: testet för
-        komponenten fäller hooken den använder. Grafens anropskanter vänds och följs
-        uppåt från symbolen; tester som rör någon av anroparna räknas, närmast först.
+        A test pinning a caller transitively pins the callee: the component's test fells
+        the hook it uses. The graph's call edges are reversed and followed upward from the
+        symbol; tests touching any caller are counted, nearest first.
         """
         wanted_file = target_file.replace("\\", "/")
         root = next(
@@ -130,7 +130,7 @@ class TestMap:
 
 def parse(data: dict) -> TestMap:
     if data.get("format") != FORMAT:
-        raise ValueError(f"okänt testkarteformat: {data.get('format')!r}")
+        raise ValueError(f"unknown test map format: {data.get('format')!r}")
     tests = [
         TestCase(
             file=raw["file"],
@@ -159,7 +159,7 @@ def load(path: Path) -> TestMap:
 
 def emit(tsconfig: Path, out: Path) -> Path:
     if not EMITTER.is_file():
-        raise FileNotFoundError(f"hittade inte emittern: {EMITTER}")
+        raise FileNotFoundError(f"emitter not found: {EMITTER}")
     result = subprocess.run(
         ["node", str(EMITTER), str(tsconfig), str(out)],
         capture_output=True,
@@ -167,7 +167,7 @@ def emit(tsconfig: Path, out: Path) -> Path:
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"test-map misslyckades ({result.returncode}): {result.stderr.strip()}"
+            f"test-map failed ({result.returncode}): {result.stderr.strip()}"
         )
     if result.stderr.strip():
         print(result.stderr.strip(), file=sys.stderr)
@@ -175,23 +175,23 @@ def emit(tsconfig: Path, out: Path) -> Path:
 
 
 def render(symbol: str, tests: list[TestCase], mocks: dict[str, list[str]]) -> str:
-    """Läsbart svar: testerna, deras assertions, och vad som är mockat."""
+    """Readable answer: the tests, their assertions, and what is mocked."""
     if not tests:
         return (
-            f"Inga tester rör {symbol!r}. Beteendet är ospecificerat — att ändra det "
-            "bryter inget test, vilket är dess egen varning."
+            f"No tests touch {symbol!r}. The behavior is unspecified — changing it "
+            "breaks no test, which is its own warning."
         )
-    lines = [f"{len(tests)} tester spikar {symbol}:", ""]
+    lines = [f"{len(tests)} tests pin {symbol}:", ""]
     for test in tests:
         title = f"{test.suite} › {test.name}" if test.suite else test.name
         lines.append(f"## {title}")
         lines.append(f"   {test.file}:{test.line}")
         mocked = mocks.get(test.file)
         if mocked:
-            lines.append(f"   mockat i filen: {', '.join(sorted(set(mocked))[:6])}")
+            lines.append(f"   mocked in this file: {', '.join(sorted(set(mocked))[:6])}")
         for assertion in test.assertions[:12]:
             lines.append(f"   L{assertion['line']}: {assertion['text']}")
         if len(test.assertions) > 12:
-            lines.append(f"   … {len(test.assertions) - 12} assertions till")
+            lines.append(f"   … {len(test.assertions) - 12} more assertions")
         lines.append("")
     return "\n".join(lines)

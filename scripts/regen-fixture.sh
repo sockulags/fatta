@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Regenererar testfixturen ur sondkretsen.
+# Regenerates the test fixture from the probe crate.
 #
-# Använder den aktiva toolchainen, som måste vara nightly — rustdocs JSON-utdata är
-# fortfarande ett instabilt gränssnitt. Sätt FATTA_TOOLCHAIN för att välja en annan,
-# till exempel FATTA_TOOLCHAIN=nightly-x86_64-pc-windows-gnu.
+# Uses the active toolchain, which must be nightly — rustdoc JSON output is still an
+# unstable interface. Set FATTA_TOOLCHAIN to pick another one, e.g.
+# FATTA_TOOLCHAIN=nightly-x86_64-pc-windows-gnu.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,8 +14,8 @@ if [ -n "$toolchain" ]; then
 fi
 
 if ! "${cargo[@]}" --version | grep -q nightly; then
-  echo "fel: aktiv toolchain är inte nightly." >&2
-  echo "     kör 'rustup default nightly' eller sätt FATTA_TOOLCHAIN." >&2
+  echo "error: the active toolchain is not nightly." >&2
+  echo "       run 'rustup default nightly' or set FATTA_TOOLCHAIN." >&2
   exit 1
 fi
 
@@ -24,4 +24,4 @@ cd "$repo/probes/cfprobe"
   -Zunstable-options --output-format json --document-private-items
 
 cp target/doc/cfprobe.json "$repo/tests/fixtures/cfprobe.json"
-echo "fixturen uppdaterad: tests/fixtures/cfprobe.json"
+echo "fixture updated: tests/fixtures/cfprobe.json"

@@ -1,6 +1,6 @@
-"""Frontend för Rust: bygger en språkneutral graf ur rustdoc-JSON.
+"""Rust frontend: builds a language-neutral graph from rustdoc JSON.
 
-Generera indata med (kräver nightly):
+Generate input with (requires nightly):
 
     cargo rustdoc --lib -- -Zunstable-options --output-format json --document-private-items
 """
@@ -15,9 +15,9 @@ from .graph import FUNCTION, MEMBER, TYPE, Graph, Item
 TYPE_KINDS = ("struct", "enum", "union", "trait")
 MEMBER_KINDS = ("struct_field", "variant")
 
-# Ett utdrag som verkligen är skriven kod. Derive-genererade metoder får spans som pekar
-# på `#[derive(...)]`-raden, och blanket-impls från std har spans i källor vi inte kan
-# läsa — bägge saknar därför en fn-deklaration och ska inte mätas som kod.
+# An excerpt that really is written code. Derive-generated methods get spans pointing at
+# the `#[derive(...)]` line, and blanket impls from std have spans in sources we cannot
+# read — neither starts with an fn declaration and neither should be measured as code.
 _FN_START = re.compile(
     r"^\s*(pub\s*(\([^)]*\)\s*)?)?(default\s+)?(const\s+)?(async\s+)?"
     r"(unsafe\s+)?(extern\s+\"[^\"]*\"\s+)?fn\b"
@@ -25,10 +25,10 @@ _FN_START = re.compile(
 
 
 def signature_only(src: str) -> str:
-    """Klipper vid kroppens början — den första klammern på djup noll.
+    """Cuts at the start of the body — the first brace at depth zero.
 
-    Pilen i `-> T` innehåller ett `>` som inte stänger någon vinkelparentes; räknas det
-    som stängning blir djupet negativt och kroppen följer med in i kontraktet."""
+    The arrow in `-> T` contains a `>` that closes no angle bracket; counting it as a
+    close makes the depth go negative and the body leaks into the contract."""
     depth = 0
     previous = ""
     for index, char in enumerate(src):
@@ -57,10 +57,10 @@ def member_ids(inner: dict) -> list:
 
 
 def type_refs(node: object) -> set[str]:
-    """Alla item-id:n ett typträd refererar till.
+    """All item ids a type tree refers to.
 
-    Rustdoc märker upplösta typreferenser som objekt med både `id` och `path`. Stabilt
-    över de formatversioner vi sett, men det är en heuristik."""
+    Rustdoc marks resolved type references as objects carrying both `id` and `path`.
+    Stable across the format versions we have seen, but it is a heuristic."""
     found: set[str] = set()
     stack: list[object] = [node]
     while stack:
@@ -75,7 +75,7 @@ def type_refs(node: object) -> set[str]:
 
 
 class _Source:
-    """Källtext utklippt ur items spans."""
+    """Source text cut from item spans."""
 
     def __init__(self, root: Path):
         self.root = root
@@ -93,8 +93,8 @@ class _Source:
         return self._cache[filename]
 
     def of(self, item: dict) -> str:
-        """Rustdoc räknar rad och kolumn från ett, och slutkolumnen är exklusiv. Utan
-        kolumnkorrigeringen tappar varje utdrag sitt första tecken."""
+        """Rustdoc counts line and column from one, and the end column is exclusive.
+        Without the column correction every excerpt loses its first character."""
         span = item.get("span")
         if not span:
             return ""
@@ -125,16 +125,17 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
     source = _Source(src_root)
 
     def origin(item_id: str) -> str | None:
-        """None betyder lokal. Metoder i impl-block saknas i `paths` — bara namngivna
-        sökvägar hamnar där — så ett item i `index` utan sökväg är lokalt, inte okänt.
-        Utan den regeln försvinner merparten av all riktig kod ur mätningen."""
+        """None means local. Methods in impl blocks are absent from `paths` — only
+        named paths land there — so an item in `index` without a path is local, not
+        unknown. Without that rule most real code vanishes from the measurement."""
         entry = paths.get(item_id)
         if entry is None:
             return None if item_id in index else "?"
         crate_id = str(entry.get("crate_id", 0))
         return None if crate_id == "0" else externs.get(crate_id, "?")
 
-    # Mottagartypen står bara som `Self` i signaturen och måste hämtas ur impl-blocket.
+    # The receiver type appears only as `Self` in the signature and must be taken from
+    # the impl block.
     owners: dict[str, set[str]] = {}
     for item in index.values():
         if kind_of(item) != "impl":
@@ -149,10 +150,11 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
     def doc_of(item: dict) -> str:
         return (item.get("docs") or "") if include_docs else ""
 
-    # Vad en kropp anropar syns inte i rustdoc-JSON — där finns inga kroppar. Namnen
-    # matchas därför mot källtexten, vilket är grövre än tsc:s upplösning: två items med
-    # samma namn går inte att skilja åt. Överskattning är det säkrare felet, men
-    # asymmetrin mot TypeScript-frontenden är verklig och värd att känna till.
+    # What a body calls is invisible in rustdoc JSON — there are no bodies there. Names
+    # are therefore matched against the source text, which is coarser than tsc's
+    # resolution: two items sharing a name cannot be told apart. Overestimation is the
+    # safer error, but the asymmetry against the TypeScript frontend is real and worth
+    # knowing.
     by_name: dict[str, list[str]] = {}
     for candidate, raw in index.items():
         name = raw.get("name")
@@ -183,7 +185,7 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
 
         if kind == "function":
             if not _FN_START.match(src):
-                continue  # genererat eller oläsbart, inte skriven kod
+                continue  # generated or unreadable, not written code
             items[item_id] = Item(
                 kind=FUNCTION,
                 contract=f"{doc_of(raw)}\n{signature_only(src)}".strip(),
@@ -221,8 +223,8 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
                 **common,
             )
 
-    # Externa items som bara nämns i `paths` — vi kan inte se deras kontrakt, men vi
-    # måste veta att de finns för att kunna avgöra om de är gratis.
+    # External items only mentioned in `paths` — we cannot see their contracts, but we
+    # must know they exist to decide whether they are free.
     for item_id, entry in paths.items():
         if item_id in items:
             continue
@@ -237,7 +239,7 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
             external=externs.get(crate_id, "?"),
         )
 
-    # Ett trait-item bär sina metoder som medlemmar; de metoderna är funktioner, och
-    # deras kontrakt är signaturen. Det gör att en anropare som bara rör en metod bara
-    # betalar för den.
+    # A trait item carries its methods as members; those methods are functions, and
+    # their contract is the signature. A caller touching one method thus pays for that
+    # method only.
     return Graph(name=crate_name(doc), items=items, **graph_args)
