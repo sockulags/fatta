@@ -275,8 +275,33 @@ def cmd_score(args: argparse.Namespace) -> int:
 # -- argparse -------------------------------------------------------------------
 
 
+DEFAULT_INDEX = Path(".fatta/graph.json")
+
+
+def cmd_index(args: argparse.Namespace) -> int:
+    """Bygger indexet för ett TypeScript-projekt på konventionsplatsen."""
+    out = args.out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        tsgraph.emit(args.tsconfig, out)
+    except (RuntimeError, FileNotFoundError) as err:
+        print(f"fel: {err}", file=sys.stderr)
+        return 1
+    graph = tsgraph.load(out)
+    local = sum(1 for i in graph.items.values() if i.external is None)
+    print(f"{out}: {len(graph.items)} items, varav {local} lokala")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
-    _, graph = load_crate(args.doc, include_docs=True, src_root=args.src_root)
+    doc = args.doc or DEFAULT_INDEX
+    if not doc.is_file():
+        print(
+            f"hittade inget index på {doc}. Bygg det med: fatta index <tsconfig.json>",
+            file=sys.stderr,
+        )
+        return 1
+    _, graph = load_crate(doc, include_docs=True, src_root=args.src_root)
     server.serve(graph)
     return 0
 
@@ -347,8 +372,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     score.set_defaults(func=cmd_score)
 
+    index = sub.add_parser("index", help="bygg indexet för ett TypeScript-projekt")
+    index.add_argument("tsconfig", type=Path, help="sökväg till tsconfig.json")
+    index.add_argument("--out", type=Path, default=DEFAULT_INDEX)
+    index.set_defaults(func=cmd_index)
+
     serve = sub.add_parser("serve", help="kör MCP-servern över ett index")
-    serve.add_argument("doc", type=Path, help="rustdoc-JSON eller fatta-graph-JSON")
+    serve.add_argument(
+        "doc",
+        type=Path,
+        nargs="?",
+        help=f"index att servera (standard: {DEFAULT_INDEX} i arbetskatalogen)",
+    )
     serve.add_argument("--src-root", type=Path, help="rot för relativa span-sökvägar")
     serve.set_defaults(func=cmd_serve)
 
