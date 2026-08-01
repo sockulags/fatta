@@ -148,8 +148,12 @@ def test_ensamchurn_raknar_lagningar_utan_malandring() -> None:
 
     tm = make_map([make_test(file="x.test.ts",
                              targets=({"name": "f", "file": "lib/x.ts", "line": 1},))])
-    fake = SimpleNamespace(returncode=0, stdout=GITLOG)
-    with patch("fatta.testhealth.subprocess.run", return_value=fake):
+    def fake_run(cmd, **_kwargs):
+        if "rev-parse" in cmd:
+            return SimpleNamespace(returncode=0, stdout="")  # repo-roten: inget prefix
+        return SimpleNamespace(returncode=0, stdout=GITLOG)
+
+    with patch("fatta.testhealth.subprocess.run", side_effect=fake_run):
         churn = measure_churn(tm, Path("."))
 
     assert churn["x.test.ts"].total == 4

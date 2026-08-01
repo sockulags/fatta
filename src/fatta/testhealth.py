@@ -164,7 +164,10 @@ def parse_git_log(text: str) -> list[set[str]]:
 
 
 def measure_churn(tm: TestMap, repo: Path) -> dict[str, Churn]:
-    """Testfil → churn, ur repots faktiska historik."""
+    """Testfil → churn, ur repots faktiska historik.
+
+    `repo` får vara en paketkatalog i ett monorepo: git-loggens sökvägar är alltid
+    repo-rotrelativa, så kartans paketrelativa sökvägar prefixas med `--show-prefix`."""
     result = subprocess.run(
         ["git", "log", "--name-only", "--pretty=format:%x01%H"],
         cwd=repo,
@@ -176,6 +179,19 @@ def measure_churn(tm: TestMap, repo: Path) -> dict[str, Churn]:
     if result.returncode != 0:
         return {}
     commits = parse_git_log(result.stdout or "")
+    prefix_result = subprocess.run(
+        ["git", "rev-parse", "--show-prefix"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    prefix = (prefix_result.stdout or "").strip().replace("\\", "/") if prefix_result.returncode == 0 else ""
+    if prefix:
+        commits = [
+            {f[len(prefix):] for f in commit if f.startswith(prefix)}
+            for commit in commits
+        ]
 
     targets_by_file: dict[str, set[str]] = {}
     for test in tm.tests:
