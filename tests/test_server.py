@@ -105,13 +105,22 @@ def test_doc_leverage_rankar_pa_besparing() -> None:
     assert values == sorted(values, reverse=True)
 
 
-def test_tools_list_beskriver_bada_verktygen() -> None:
+def test_tools_list_beskriver_verktygen() -> None:
     response = server.handle(tiny_graph(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
 
     assert {t["name"] for t in response["result"]["tools"]} == {
         "what_must_i_know",
         "doc_leverage",
+        "which_tests_pin",
     }
+
+
+def test_which_tests_pin_utan_karta_ger_fel_inte_tomt_svar() -> None:
+    """Utan karta får svaret inte se ut som "inga tester finns" — det vore att utge
+    ospecificerat beteende där mätningen bara saknas."""
+    payload = call(tiny_graph(), "which_tests_pin", {"symbol": "handle"})
+
+    assert "error" in payload
 
 
 def test_initialize_svarar_med_protokollversion() -> None:

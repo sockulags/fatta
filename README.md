@@ -98,6 +98,30 @@ uv run fatta scan medvind.json --top 12
 Emittern läser `typescript` ur projektet som analyseras, så ingen version behöver
 installeras här.
 
+## Testkartan
+
+A/B/C-mätningen (`experiment/ab/RESULTS.md`) visade att det som avgör om en agent lyckas
+ändra en funktion inte är kodförståelse utan om beteendespecifikationen går att hitta —
+och den bor i testerna, ofta som enda plats i kodbasen. Testkartan gör den slagbar:
+
+```bash
+fatta testmap tsconfig.json          # bygg .fatta/testmap.json
+fatta tests processImportJobById     # vilka tester spikar symbolen, och vad hävdar de?
+```
+
+Svaret listar testerna med deras expect-rader ordagrant — de exakta felmeddelanden och
+anropsformer som inte går att gissa — plus vad som är mockat i testfilen. Ett tomt svar
+är sin egen varning: beteendet är ospecificerat, att ändra det bryter inget test.
+
+Tester når kod på tre sätt och kartan fångar alla: upplösta identifierare, destrukturerade
+dynamiska importer (`const { GET } = await import('@/app/...')`), och källäsande tester
+(`readFileSync('app/.../page.tsx')`). Hjälpfunktioner i testfilen expanderas, och
+anropsgrafen bryggar indirekta träffar: testet som spikar anroparen spikar det anropade.
+
+Validerad mot experimentets facit — de empiriskt uppmätta domarfilerna per fall: den
+främsta förutsägelsen är en verklig domare i 10 av 13 fall, och 11 av 13 fall har minst
+en domare i listan. Missarna är djup indirektion via komponentträd.
+
 ## Indexet som tjänst
 
 ```bash

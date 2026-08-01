@@ -12,6 +12,7 @@ from pathlib import Path
 from . import pairs as pairs_mod
 from . import sources
 from . import surprisal as surprisal_mod
+from . import testmap as testmap_mod
 from . import rustdoc
 from . import server
 from . import tsgraph
@@ -308,6 +309,34 @@ def cmd_ask(args: argparse.Namespace) -> int:
     return 0 if "error" not in answer.payload else 1
 
 
+DEFAULT_TESTMAP = Path(".fatta/testmap.json")
+
+
+def cmd_testmap(args: argparse.Namespace) -> int:
+    """Bygger testkartan för ett TypeScript-projekt."""
+    try:
+        testmap_mod.emit(args.tsconfig, args.out)
+    except (RuntimeError, FileNotFoundError) as err:
+        print(f"fel: {err}", file=sys.stderr)
+        return 1
+    tm = testmap_mod.load(args.out)
+    exercised = len({t2["name"] for t in tm.tests for t2 in t.targets})
+    print(f"{args.out}: {len(tm.tests)} tester, {exercised} symboler spikade")
+    return 0
+
+
+def cmd_tests(args: argparse.Namespace) -> int:
+    """Vilka tester spikar en symbol, och vad hävdar de?"""
+    path = args.map or DEFAULT_TESTMAP
+    if not path.is_file():
+        print(f"hittade ingen testkarta på {path}. Bygg: fatta testmap <tsconfig>", file=sys.stderr)
+        return 1
+    tm = testmap_mod.load(path)
+    found = tm.pinning(args.symbol, args.file)
+    print(testmap_mod.render(args.symbol, found, tm.mocks))
+    return 0 if found else 1
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     doc = args.doc or DEFAULT_INDEX
     if not doc.is_file():
@@ -317,7 +346,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         )
         return 1
     _, graph = load_crate(doc, include_docs=True, src_root=args.src_root)
-    server.serve(graph)
+    tmap = None
+    tmap_path = args.testmap or DEFAULT_TESTMAP
+    if tmap_path.is_file():
+        tmap = testmap_mod.load(tmap_path)
+    server.serve(graph, tmap=tmap)
     return 0
 
 
@@ -397,6 +430,17 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("doc", type=Path, nargs="?", help=f"index (standard: {DEFAULT_INDEX})")
     ask.set_defaults(func=cmd_ask)
 
+    tmap = sub.add_parser("testmap", help="bygg testkartan för ett TypeScript-projekt")
+    tmap.add_argument("tsconfig", type=Path)
+    tmap.add_argument("--out", type=Path, default=DEFAULT_TESTMAP)
+    tmap.set_defaults(func=cmd_testmap)
+
+    tq = sub.add_parser("tests", help="vilka tester spikar en symbol, och vad hävdar de")
+    tq.add_argument("symbol")
+    tq.add_argument("--map", type=Path, help=f"testkarta (standard: {DEFAULT_TESTMAP})")
+    tq.add_argument("--file", help="filtrera på symbolens filväg (vid namnkrockar)")
+    tq.set_defaults(func=cmd_tests)
+
     serve = sub.add_parser("serve", help="kör MCP-servern över ett index")
     serve.add_argument(
         "doc",
@@ -405,6 +449,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"index att servera (standard: {DEFAULT_INDEX} i arbetskatalogen)",
     )
     serve.add_argument("--src-root", type=Path, help="rot för relativa span-sökvägar")
+    serve.add_argument("--testmap", type=Path, help=f"testkarta (standard: {DEFAULT_TESTMAP})")
     serve.set_defaults(func=cmd_serve)
 
     return parser

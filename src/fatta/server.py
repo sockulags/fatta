@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .graph import Graph, used_names
+from . import testmap as testmap_mod
 
 PROTOCOL_VERSION = "2025-06-18"
 
@@ -131,7 +132,64 @@ def doc_leverage(graph: Graph, limit: int = 20) -> Answer:
     return Answer("doc_leverage", {"ranked": scored[:limit]})
 
 
+def which_tests_pin(graph: Graph, tmap, symbol: str, file_hint: str | None) -> Answer:
+    """Testerna som spikar en symbols beteende — direkt eller genom anropskedjan.
+
+    Det här är svaret på det A/B/C-mätningen visade: specifikationen bor i testerna.
+    Läses de innan man ändrar är man inte längre hänvisad till att gissa literaler."""
+    if tmap is None:
+        return Answer(symbol, {"error": "ingen testkarta laddad — bygg med: fatta testmap"})
+    direct = tmap.pinning(symbol, file_hint)
+    files = tmap.judge_files(symbol, file_hint)
+    target_file = None
+    for item in graph.items.values():
+        if item.name == symbol and item.external is None:
+            target_file = item.file
+            break
+    via = (
+        tmap.judge_files_via_graph(symbol, target_file, graph) if target_file else []
+    )
+    return Answer(
+        symbol,
+        {
+            "symbol": symbol,
+            "read_these_first": files + [f for f in via if f not in files],
+            "tests": [
+                {
+                    "file": t.file,
+                    "name": f"{t.suite} › {t.name}" if t.suite else t.name,
+                    "line": t.line,
+                    "assertions": [a["text"] for a in t.assertions[:8]],
+                    "mocked": sorted(set(tmap.mocks.get(t.file, [])))[:6],
+                }
+                for t in direct[:10]
+            ],
+            "note": (
+                "Tom lista betyder att beteendet är ospecificerat — att ändra det "
+                "bryter inget test, vilket är dess egen varning."
+                if not direct and not via
+                else "Läs read_these_first innan du ändrar symbolen."
+            ),
+        },
+    )
+
+
 TOOLS = [
+    {
+        "name": "which_tests_pin",
+        "description": (
+            "Testerna som spikar en symbols beteende, med deras assertions ordagrant. "
+            "Läs dem FÖRST vid ändringar — beteendekrav bor ofta enbart där."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string"},
+                "file_hint": {"type": "string"},
+            },
+            "required": ["symbol"],
+        },
+    },
     {
         "name": "what_must_i_know",
         "description": (
@@ -158,7 +216,9 @@ TOOLS = [
 ]
 
 
-def dispatch(graph: Graph, name: str, arguments: dict) -> Answer:
+def dispatch(graph: Graph, name: str, arguments: dict, tmap=None) -> Answer:
+    if name == "which_tests_pin":
+        return which_tests_pin(graph, tmap, arguments.get("symbol", ""), arguments.get("file_hint"))
     if name == "what_must_i_know":
         return what_must_i_know(graph, arguments.get("symbol", ""))
     if name == "doc_leverage":
@@ -166,7 +226,7 @@ def dispatch(graph: Graph, name: str, arguments: dict) -> Answer:
     return Answer(name, {"error": f"okänt verktyg {name!r}"})
 
 
-def handle(graph: Graph, message: dict) -> dict | None:
+def handle(graph: Graph, message: dict, tmap=None) -> dict | None:
     """Ett JSON-RPC-svar, eller None för notifieringar som inte ska besvaras."""
     method = message.get("method")
     request_id = message.get("id")
@@ -181,7 +241,7 @@ def handle(graph: Graph, message: dict) -> dict | None:
         result = {"tools": TOOLS}
     elif method == "tools/call":
         params = message.get("params") or {}
-        answer = dispatch(graph, params.get("name", ""), params.get("arguments") or {})
+        answer = dispatch(graph, params.get("name", ""), params.get("arguments") or {}, tmap)
         result = {"content": [{"type": "text", "text": answer.as_json()}]}
     elif request_id is None:
         return None  # notifiering, till exempel notifications/initialized
@@ -197,7 +257,7 @@ def handle(graph: Graph, message: dict) -> dict | None:
     return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
 
-def serve(graph: Graph, stdin=None, stdout=None) -> None:
+def serve(graph: Graph, stdin=None, stdout=None, tmap=None) -> None:
     """Läser JSON-RPC rad för rad från stdin och svarar på stdout."""
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
@@ -209,7 +269,7 @@ def serve(graph: Graph, stdin=None, stdout=None) -> None:
             message = json.loads(line)
         except json.JSONDecodeError:
             continue
-        response = handle(graph, message)
+        response = handle(graph, message, tmap)
         if response is not None:
             stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             stdout.flush()
