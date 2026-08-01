@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fatta.cli import parse_answers, round_robin
-from fatta.metric import Footprint
+from fatta.graph import Footprint
 from fatta.pairs import Pair, candidates, select
 
 

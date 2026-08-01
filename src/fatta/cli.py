@@ -12,7 +12,10 @@ from pathlib import Path
 from . import pairs as pairs_mod
 from . import sources
 from . import surprisal as surprisal_mod
-from .metric import Crate, Footprint
+from . import rustdoc
+from . import server
+from . import tsgraph
+from .graph import Footprint, Graph
 
 
 # -- gemensamt ------------------------------------------------------------------
@@ -23,8 +26,11 @@ def load_crate(
     include_docs: bool,
     src_root: Path | None = None,
     use_directed: bool = True,
-) -> tuple[str, Crate]:
+) -> tuple[str, Graph]:
     doc = json.loads(doc_path.read_text(encoding="utf-8"))
+    if doc.get("format") == tsgraph.FORMAT:
+        graph = tsgraph.parse(doc, use_directed=use_directed)
+        return graph.name, graph
     version = doc.get("format_version")
     if version is not None and version < 55:
         print(
@@ -33,7 +39,7 @@ def load_crate(
             file=sys.stderr,
         )
     root = sources.locate(doc, doc_path, src_root)
-    crate = Crate.from_doc(
+    crate = rustdoc.load(
         doc, src_root=root, include_docs=include_docs, use_directed=use_directed
     )
     if not crate.body_text(next(iter(crate.local_functions()), "")):
@@ -44,7 +50,7 @@ def load_crate(
     return sources.crate_name(doc), crate
 
 
-def footprints_of(crate: Crate) -> list[Footprint]:
+def footprints_of(crate: Graph) -> list[Footprint]:
     return sorted(
         (crate.footprint(item_id) for item_id in crate.local_functions()),
         key=lambda row: -row.cf,
@@ -146,7 +152,7 @@ def cmd_pairs(args: argparse.Namespace) -> int:
         print("--n måste vara större än --controls", file=sys.stderr)
         return 1
 
-    loaded: dict[str, Crate] = {}
+    loaded: dict[str, Graph] = {}
     disagree_buckets: list[list[pairs_mod.Pair]] = []
     agree_buckets: list[list[pairs_mod.Pair]] = []
 
@@ -269,6 +275,12 @@ def cmd_score(args: argparse.Namespace) -> int:
 # -- argparse -------------------------------------------------------------------
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    _, graph = load_crate(args.doc, include_docs=True, src_root=args.src_root)
+    server.serve(graph)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fatta",
@@ -334,6 +346,11 @@ def build_parser() -> argparse.ArgumentParser:
         "answers", help="ifyllt granskningsark, eller en sträng som ABBA"
     )
     score.set_defaults(func=cmd_score)
+
+    serve = sub.add_parser("serve", help="kör MCP-servern över ett index")
+    serve.add_argument("doc", type=Path, help="rustdoc-JSON eller fatta-graph-JSON")
+    serve.add_argument("--src-root", type=Path, help="rot för relativa span-sökvägar")
+    serve.set_defaults(func=cmd_serve)
 
     return parser
 

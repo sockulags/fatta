@@ -1,7 +1,15 @@
 # fatta
 
-Mäter **förståelsefotavtryck** (CF) för Rust-kod: hur mycket text en läsare måste ta in för
-att förstå en enskild funktion, räknat i tokens och beräknat automatiskt ur rustdoc-JSON.
+Ett **förståelseindex** över en kodbas: för varje funktion, den minsta slutna mängd man
+måste förstå för att kunna ändra den — beräknad ur kompilatorns egen typinformation.
+
+Två användningar av samma sak. Som mått: **förståelsefotavtryck** (CF), hur mycket text en
+läsare måste ta in, i tokens. Som tjänst: en MCP-server som svarar en AI-agent på "vad
+måste jag veta för att ändra det här", avgränsat.
+
+Kärnan i `graph.py` är språkneutral. Frontenderna bygger samma graf: `rustdoc.py` för Rust
+ur rustdoc-JSON, `tsgraph.py` plus `scripts/ts-graph.mjs` för TypeScript ur tsc:s egen
+typcheckare.
 
 ## Vad CF är
 
@@ -79,6 +87,37 @@ Nyttiga flaggor: `--no-docs` utesluter doc-kommentarer ur beroendenas kontrakt, 
 skriver resultatet för vidare analys, `--top N` kortar tabellen, och `--src-root DIR` behövs
 när källkoden inte ligger tre nivåer ovanför JSON-filen. För crates hämtade från crates.io
 hittas källan automatiskt i registrets cache.
+
+## TypeScript
+
+```bash
+node scripts/ts-graph.mjs ../medvind/tsconfig.json medvind.json
+uv run fatta scan medvind.json --top 12
+```
+
+Emittern läser `typescript` ur projektet som analyseras, så ingen version behöver
+installeras här.
+
+## Indexet som tjänst
+
+```bash
+uv run fatta serve medvind.json
+```
+
+En MCP-server över stdio med två verktyg. `what_must_i_know` ger den slutna mängden med
+kontrakt, härkomst och kostnad. `doc_leverage` rankar var ett pålitligt kontrakt skulle
+bespara mest läsning.
+
+Skillnaden mot vanlig kodsökning är avgränsningen. En sökning ger relevant text utan
+botten — du vet aldrig när du sett tillräckligt. Det här svarar "det här är allt, du kan
+sluta läsa", och säger uttryckligen ifrån när det *inte* kan det: nås ett paket utan graf
+sätts `bounded` till falskt och det saknade listas. Att tiga om det vore att utge mängden
+för sluten när den inte är det, och då slutar agenten läsa på fel ställe.
+
+Varje uppgift bär sin härkomst. I den här versionen är allt `derived` — härlett ur koden
+och sant per konstruktion. Påstådda fakta som ingen kontrollerar finns med flit inte med:
+en uppgift som får en agent att sluta läsa måste vara sann, annars är den värre än ingen
+uppgift alls.
 
 ## Den blinda granskningen
 

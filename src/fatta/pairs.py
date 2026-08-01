@@ -12,7 +12,7 @@ import hashlib
 from dataclasses import dataclass
 from itertools import combinations
 
-from .metric import Crate, Footprint, used_names
+from .graph import Footprint, Graph, used_names
 
 # Under dessa gränser är skillnaderna brus snarare än signal.
 MIN_LOC = 4
@@ -130,7 +130,7 @@ def select(
 # -- rendering ------------------------------------------------------------------
 
 
-def contract_block(crate: Crate, item_id: str) -> str:
+def contract_block(crate: Graph, item_id: str) -> str:
     """Kontraktsgrannskapet, sorterat på namn.
 
     Sorteringen är medvetet alfabetisk och inte på storlek — storleksordning skulle läcka
@@ -147,7 +147,7 @@ def contract_block(crate: Crate, item_id: str) -> str:
     return "```rust\n" + "\n\n".join(texts) + "\n```"
 
 
-def render_pair(crate: Crate, pair: Pair, number: int) -> str:
+def render_pair(crate: Graph, pair: Pair, number: int) -> str:
     first, second = pair.as_shown()
     lines = [
         f"# Par {number:02d} — {pair.crate}",

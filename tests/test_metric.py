@@ -11,16 +11,18 @@ from pathlib import Path
 
 import pytest
 
-from fatta.metric import Crate, signature_only
+from fatta import rustdoc
+from fatta.graph import Graph
+from fatta.rustdoc import signature_only
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURE = REPO / "tests" / "fixtures" / "cfprobe.json"
 PROBE_SRC = REPO / "probes" / "cfprobe"
 
 
-def build(include_docs: bool = True, use_directed: bool = True) -> Crate:
+def build(include_docs: bool = True, use_directed: bool = True) -> Graph:
     doc = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    return Crate.from_doc(
+    return rustdoc.load(
         doc,
         src_root=PROBE_SRC,
         include_docs=include_docs,
@@ -29,24 +31,24 @@ def build(include_docs: bool = True, use_directed: bool = True) -> Crate:
 
 
 @pytest.fixture
-def crate() -> Crate:
+def crate() -> Graph:
     return build()
 
 
 @pytest.fixture
-def crate_whole() -> Crate:
+def crate_whole() -> Graph:
     """Måttet som det såg ut före den användningsstyrda lagningen."""
     return build(use_directed=False)
 
 
-def find(crate: Crate, name: str) -> str:
+def find(crate: Graph, name: str) -> str:
     for item_id in crate.local_functions():
         if crate.name_of(item_id) == name:
             return item_id
     raise AssertionError(f"hittade inte funktionen {name}")
 
 
-def test_inversionen_mot_radantal(crate: Crate) -> None:
+def test_inversionen_mot_radantal(crate: Graph) -> None:
     """Kärnpåståendet: kort funktion kan ha större fotavtryck än lång."""
     run = crate.footprint(find(crate, "run"))
     checksum = crate.footprint(find(crate, "checksum"))
@@ -55,7 +57,7 @@ def test_inversionen_mot_radantal(crate: Crate) -> None:
     assert run.cf > checksum.cf, "men ha det större fotavtrycket"
 
 
-def test_std_kostar_ingenting(crate: Crate) -> None:
+def test_std_kostar_ingenting(crate: Graph) -> None:
     """checksum rör bara std i signaturen, så slutningen ska vara gratis."""
     checksum = crate.footprint(find(crate, "checksum"))
 
@@ -64,7 +66,7 @@ def test_std_kostar_ingenting(crate: Crate) -> None:
     assert checksum.cf == checksum.body_tokens
 
 
-def test_slutningen_ar_transitiv(crate: Crate) -> None:
+def test_slutningen_ar_transitiv(crate: Graph) -> None:
     """run rör Config direkt, och Limits transitivt via fältet cfg.limits."""
     names = {name for name, _ in crate.footprint(find(crate, "run")).charged}
 
@@ -72,7 +74,7 @@ def test_slutningen_ar_transitiv(crate: Crate) -> None:
     assert "Limits" in names, "transitiv referens via ett använt fält saknas"
 
 
-def test_oanvanda_falt_dras_inte_in(crate: Crate) -> None:
+def test_oanvanda_falt_dras_inte_in(crate: Graph) -> None:
     """run läser cfg.limits och cfg.name men aldrig cfg.stage, så Stage hör inte hemma
     i det man måste förstå för att skriva run."""
     names = {name for name, _ in crate.footprint(find(crate, "run")).charged}
@@ -80,14 +82,14 @@ def test_oanvanda_falt_dras_inte_in(crate: Crate) -> None:
     assert "Stage" not in names
 
 
-def test_hela_typer_drar_in_allt(crate_whole: Crate) -> None:
+def test_hela_typer_drar_in_allt(crate_whole: Graph) -> None:
     """Med --whole-types faller måttet tillbaka till att ladda för hela definitioner."""
     names = {name for name, _ in crate_whole.footprint(find(crate_whole, "run")).charged}
 
     assert {"Config", "Limits", "Report", "Stage"} <= names
 
 
-def test_bred_typ_kostar_bara_det_som_lases(crate: Crate, crate_whole: Crate) -> None:
+def test_bred_typ_kostar_bara_det_som_lases(crate: Graph, crate_whole: Graph) -> None:
     """peek öppnar en post med tio fält men läser ett."""
     smalt = crate.footprint(find(crate, "peek"))
     brett = crate_whole.footprint(find(crate_whole, "peek"))
@@ -95,7 +97,7 @@ def test_bred_typ_kostar_bara_det_som_lases(crate: Crate, crate_whole: Crate) ->
     assert smalt.closure_tokens < brett.closure_tokens / 2
 
 
-def test_vidarebefordran_oppnar_ingenting(crate: Crate) -> None:
+def test_vidarebefordran_oppnar_ingenting(crate: Graph) -> None:
     """forward skickar posten vidare utan att röra ett enda fält. Att bära den kostar,
     att förstå dess inre gör det inte — och det var omslagsfyndet som krävde lagningen."""
     forward = crate.footprint(find(crate, "forward"))
@@ -104,7 +106,7 @@ def test_vidarebefordran_oppnar_ingenting(crate: Crate) -> None:
     assert forward.closure_tokens < peek.closure_tokens
 
 
-def test_kontrakt_utesluter_kroppen(crate: Crate) -> None:
+def test_kontrakt_utesluter_kroppen(crate: Graph) -> None:
     """Ett beroendes kontrakt får aldrig innehålla dess implementation."""
     contract = crate.contract_text(find(crate, "checksum"))
 
@@ -112,14 +114,14 @@ def test_kontrakt_utesluter_kroppen(crate: Crate) -> None:
     assert "wrapping_mul" not in contract, "kroppen läckte in i kontraktet"
 
 
-def test_egen_kropp_raknas(crate: Crate) -> None:
+def test_egen_kropp_raknas(crate: Graph) -> None:
     """Den mätta funktionens egen kropp ingår däremot i CF."""
     body = crate.body_text(find(crate, "checksum"))
 
     assert "wrapping_mul" in body
 
 
-def test_utdraget_borjar_och_slutar_ratt(crate: Crate) -> None:
+def test_utdraget_borjar_och_slutar_ratt(crate: Graph) -> None:
     """Spans är ettbaserade i kolumn. Matchar man bara på delsträngar syns det inte att
     första tecknet fallit bort, så kanterna testas uttryckligen."""
     body = crate.body_text(find(crate, "checksum"))
@@ -153,7 +155,7 @@ def test_signature_only_lamnar_kroppslos_signatur_orord() -> None:
     assert signature_only(src) == src
 
 
-def test_alla_lokala_funktioner_hittas(crate: Crate) -> None:
+def test_alla_lokala_funktioner_hittas(crate: Graph) -> None:
     """Inklusive metoder. De saknas i rustdocs `paths`, och räknas de som okända
     försvinner merparten av all riktig kod ur mätningen."""
     names = {crate.name_of(i) for i in crate.local_functions()}
@@ -161,7 +163,7 @@ def test_alla_lokala_funktioner_hittas(crate: Crate) -> None:
     assert names == {"run", "checksum", "peek", "forward", "depth"}
 
 
-def test_metoder_mats_som_funktioner(crate: Crate) -> None:
+def test_metoder_mats_som_funktioner(crate: Graph) -> None:
     depth = crate.footprint(find(crate, "depth"))
 
     assert depth.loc > 0, "källtexten hittades inte"
