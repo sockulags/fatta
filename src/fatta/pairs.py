@@ -12,7 +12,7 @@ import hashlib
 from dataclasses import dataclass
 from itertools import combinations
 
-from .metric import Crate, Footprint
+from .metric import Crate, Footprint, used_names
 
 # Under dessa gränser är skillnaderna brus snarare än signal.
 MIN_LOC = 4
@@ -136,11 +136,12 @@ def contract_block(crate: Crate, item_id: str) -> str:
     Sorteringen är medvetet alfabetisk och inte på storlek — storleksordning skulle läcka
     just det måttet som ska hållas dolt.
     """
+    used = used_names(crate.body_text(item_id)) if crate.use_directed else None
     deps = sorted(
-        (dep for dep in crate.closure(item_id) if not crate.is_free(dep)),
+        (dep for dep in crate.closure(item_id, used) if not crate.is_free(dep)),
         key=crate.name_of,
     )
-    texts = [t for t in (crate.contract_text(dep) for dep in deps) if t]
+    texts = [t for t in (crate.contract_text(dep, used) for dep in deps) if t]
     if not texts:
         return "_Inga lokala beroenden — allt i signaturen är välkänt._"
     return "```rust\n" + "\n\n".join(texts) + "\n```"

@@ -18,14 +18,25 @@ FIXTURE = REPO / "tests" / "fixtures" / "cfprobe.json"
 PROBE_SRC = REPO / "probes" / "cfprobe"
 
 
-def build(include_docs: bool = True) -> Crate:
+def build(include_docs: bool = True, use_directed: bool = True) -> Crate:
     doc = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    return Crate.from_doc(doc, src_root=PROBE_SRC, include_docs=include_docs)
+    return Crate.from_doc(
+        doc,
+        src_root=PROBE_SRC,
+        include_docs=include_docs,
+        use_directed=use_directed,
+    )
 
 
 @pytest.fixture
 def crate() -> Crate:
     return build()
+
+
+@pytest.fixture
+def crate_whole() -> Crate:
+    """Måttet som det såg ut före den användningsstyrda lagningen."""
+    return build(use_directed=False)
 
 
 def find(crate: Crate, name: str) -> str:
@@ -54,11 +65,43 @@ def test_std_kostar_ingenting(crate: Crate) -> None:
 
 
 def test_slutningen_ar_transitiv(crate: Crate) -> None:
-    """run rör Config direkt; Limits och Stage kommer via Configs fält."""
+    """run rör Config direkt, och Limits transitivt via fältet cfg.limits."""
     names = {name for name, _ in crate.footprint(find(crate, "run")).charged}
 
     assert {"Config", "Report"} <= names, "direkta referenser saknas"
-    assert {"Limits", "Stage"} <= names, "transitiva referenser saknas"
+    assert "Limits" in names, "transitiv referens via ett använt fält saknas"
+
+
+def test_oanvanda_falt_dras_inte_in(crate: Crate) -> None:
+    """run läser cfg.limits och cfg.name men aldrig cfg.stage, så Stage hör inte hemma
+    i det man måste förstå för att skriva run."""
+    names = {name for name, _ in crate.footprint(find(crate, "run")).charged}
+
+    assert "Stage" not in names
+
+
+def test_hela_typer_drar_in_allt(crate_whole: Crate) -> None:
+    """Med --whole-types faller måttet tillbaka till att ladda för hela definitioner."""
+    names = {name for name, _ in crate_whole.footprint(find(crate_whole, "run")).charged}
+
+    assert {"Config", "Limits", "Report", "Stage"} <= names
+
+
+def test_bred_typ_kostar_bara_det_som_lases(crate: Crate, crate_whole: Crate) -> None:
+    """peek öppnar en post med tio fält men läser ett."""
+    smalt = crate.footprint(find(crate, "peek"))
+    brett = crate_whole.footprint(find(crate_whole, "peek"))
+
+    assert smalt.closure_tokens < brett.closure_tokens / 2
+
+
+def test_vidarebefordran_oppnar_ingenting(crate: Crate) -> None:
+    """forward skickar posten vidare utan att röra ett enda fält. Att bära den kostar,
+    att förstå dess inre gör det inte — och det var omslagsfyndet som krävde lagningen."""
+    forward = crate.footprint(find(crate, "forward"))
+    peek = crate.footprint(find(crate, "peek"))
+
+    assert forward.closure_tokens < peek.closure_tokens
 
 
 def test_kontrakt_utesluter_kroppen(crate: Crate) -> None:
@@ -111,6 +154,15 @@ def test_signature_only_lamnar_kroppslos_signatur_orord() -> None:
 
 
 def test_alla_lokala_funktioner_hittas(crate: Crate) -> None:
+    """Inklusive metoder. De saknas i rustdocs `paths`, och räknas de som okända
+    försvinner merparten av all riktig kod ur mätningen."""
     names = {crate.name_of(i) for i in crate.local_functions()}
 
-    assert names == {"run", "checksum"}
+    assert names == {"run", "checksum", "peek", "forward", "depth"}
+
+
+def test_metoder_mats_som_funktioner(crate: Crate) -> None:
+    depth = crate.footprint(find(crate, "depth"))
+
+    assert depth.loc > 0, "källtexten hittades inte"
+    assert "Limits" in {name for name, _ in depth.charged}, "self.limits följdes inte"

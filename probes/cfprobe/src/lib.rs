@@ -29,6 +29,14 @@ pub struct Config {
     pub stage: Stage,
 }
 
+impl Config {
+    /// Metod i ett impl-block. Sådana saknas i rustdocs `paths` och är därför lätta att
+    /// tappa bort — i riktig kod är de merparten av alla funktioner.
+    pub fn depth(&self) -> u32 {
+        self.limits.max_depth
+    }
+}
+
 /// Rapport från en körning.
 #[derive(Debug, Serialize)]
 pub struct Report {
@@ -42,6 +50,31 @@ pub fn run(cfg: &Config) -> Result<Report, String> {
         return Err(format!("{} har djup 0", cfg.name));
     }
     Ok(Report { visited: cfg.limits.max_items, skipped: Vec::new() })
+}
+
+/// Bred post. En anropare rör typiskt ett par fält, aldrig alla.
+#[derive(Debug, Serialize)]
+pub struct Wide {
+    pub alpha: u32,
+    pub beta: u32,
+    pub gamma: u32,
+    pub delta: u32,
+    pub epsilon: String,
+    pub zeta: String,
+    pub eta: Vec<String>,
+    pub theta: Option<Limits>,
+    pub iota: bool,
+    pub kappa: u64,
+}
+
+/// Öppnar den breda posten men läser bara ett fält.
+pub fn peek(wide: &Wide) -> u32 {
+    wide.alpha
+}
+
+/// Skickar den breda posten vidare utan att öppna den alls.
+pub fn forward(wide: Wide) -> Wide {
+    wide
 }
 
 /// Längre kropp, inget fotavtryck: allt i signaturen är std och kostar därför noll.

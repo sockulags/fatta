@@ -7,6 +7,7 @@ måttets bärande antagande: ett kontrakt ska räcka för att förstå vad som l
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
@@ -18,6 +19,32 @@ WELLKNOWN = frozenset(
 )
 
 LOCAL = "<local>"
+
+# Namn en funktionskropp rör vid. Rustdoc-JSON saknar kroppar, så de här läses ur
+# källtexten: fältaccesser, bindningar i strukturliteraler och segment i sökvägar.
+# Heuristiken är avsiktligt frikostig — att ta med för mycket överskattar kostnaden,
+# att missa något underskattar den, och överskattning är det säkrare felet.
+_ACCESS = re.compile(r"\.\s*([A-Za-z_]\w*)")
+_BINDING = re.compile(r"\b([A-Za-z_]\w*)\s*:")
+_PATH_SEGMENT = re.compile(r"::\s*([A-Za-z_]\w*)")
+
+
+# Ett utdrag som verkligen är en skriven funktion. Derive-genererade metoder får spans
+# som pekar på `#[derive(...)]`-raden, och blanket-impls från std har spans i källor vi
+# inte kan läsa — bägge saknar därför en fn-deklaration och ska inte mätas som kod.
+_FN_START = re.compile(
+    r"^\s*(pub\s*(\([^)]*\)\s*)?)?(default\s+)?(const\s+)?(async\s+)?"
+    r"(unsafe\s+)?(extern\s+\"[^\"]*\"\s+)?fn\b"
+)
+
+
+def used_names(body: str) -> set[str]:
+    """Vilka medlemmar en kropp faktiskt nämner."""
+    return (
+        set(_ACCESS.findall(body))
+        | set(_BINDING.findall(body))
+        | set(_PATH_SEGMENT.findall(body))
+    )
 
 
 def estimate_tokens(text: str) -> int:
@@ -53,9 +80,15 @@ class Crate:
     externs: dict[str, str]
     src_root: Path
     include_docs: bool = True
+    use_directed: bool = True
+    """Ladda bara för de medlemmar koden faktiskt rör.
+
+    Med hela typdefinitioner straffas breda strukturer systematiskt, och en funktion som
+    bara skickar ett värde vidare får betala för att förstå något den aldrig öppnar."""
     wellknown: frozenset[str] = WELLKNOWN
     count_tokens: Callable[[str], int] = estimate_tokens
     _src_cache: dict[str, list[str]] = field(default_factory=dict, repr=False)
+    _owners: dict[str, set[str]] | None = field(default=None, repr=False)
 
     @classmethod
     def from_doc(cls, doc: dict, src_root: Path, **kwargs) -> Crate:
@@ -72,9 +105,15 @@ class Crate:
     # -- härkomst ---------------------------------------------------------------
 
     def crate_of(self, item_id: str) -> str:
+        """Vilket crate ett item kommer från.
+
+        Metoder i impl-block saknas i `paths` — bara namngivna sökvägar hamnar där. Ett
+        item som finns i `index` men inte i `paths` är därför lokalt, inte okänt. Utan den
+        regeln försvinner merparten av all riktig kod ur mätningen.
+        """
         entry = self.paths.get(item_id)
         if entry is None:
-            return "?"
+            return LOCAL if item_id in self.index else "?"
         crate_id = str(entry.get("crate_id", 0))
         return LOCAL if crate_id == "0" else self.externs.get(crate_id, "?")
 
@@ -122,19 +161,53 @@ class Crate:
 
     # -- kontrakt kontra kropp --------------------------------------------------
 
-    def contract_text(self, item_id: str) -> str:
+    def contract_text(self, item_id: str, used: set[str] | None = None) -> str:
         """Det en läsare måste se av ett beroende: doc plus signatur eller definition.
 
         Aldrig implementationen — det är hela poängen med att kalla det ett kontrakt.
+
+        Är mätningen användningsstyrd projiceras typer ner till sitt huvud plus de
+        medlemmar som faktiskt nämns. En bred struktur man rör tre fält i kostar tre fält,
+        inte trehundra.
         """
         item = self.index.get(item_id)
         if item is None:
             return ""
-        src = self.source(item)
-        if kind_of(item) == "function":
-            src = signature_only(src)
+        kind = kind_of(item)
+        if kind == "function":
+            src = signature_only(self.source(item))
+        elif used is not None and kind in ("struct", "enum", "union"):
+            src = self.projected_type(item_id, used)
+        else:
+            src = self.source(item)
         doc = (item.get("docs") or "") if self.include_docs else ""
         return f"{doc}\n{src}".strip()
+
+    def projected_type(self, item_id: str, used: set[str]) -> str:
+        """Typens huvud plus bara de medlemmar som nämnts."""
+        item = self.index[item_id]
+        header = signature_only(self.source(item))
+        members = [
+            self.source(self.index[member])
+            for member in self.members(item_id, used)
+            if member in self.index
+        ]
+        if not members:
+            return header
+        return header + " { " + "; ".join(members) + " }"
+
+    def members(self, item_id: str, used: set[str] | None) -> list[str]:
+        """Fält- eller variant-id:n för en typ, filtrerade på användning."""
+        item = self.index.get(item_id)
+        if item is None:
+            return []
+        kind = kind_of(item)
+        if kind not in ("struct", "enum", "union"):
+            return []
+        ids = [str(member) for member in member_ids(item["inner"][kind])]
+        if used is None:
+            return ids
+        return [member for member in ids if self.name_of(member) in used]
 
     def body_text(self, item_id: str) -> str:
         item = self.index.get(item_id)
@@ -162,33 +235,39 @@ class Crate:
                 stack.extend(cur)
         return found
 
-    def surface_of(self, item_id: str) -> set[str]:
+    def surface_of(self, item_id: str, used: set[str] | None = None) -> set[str]:
         """Vad ett items kontrakt rör vid: signaturen för funktioner, fälttyperna för
-        strukturar. Aldrig kroppen — den finns inte ens i rustdoc-JSON."""
+        strukturar. Aldrig kroppen — den finns inte ens i rustdoc-JSON.
+
+        Signaturen filtreras aldrig: de typerna måste läsaren se oavsett. Det är typernas
+        *inre* som beskärs till det som används.
+        """
         item = self.index.get(item_id)
         if item is None:
             return set()
         inner = item.get("inner", {})
         kind = kind_of(item)
         if kind == "function":
-            return self.type_refs(inner["function"].get("sig"))
+            # `&self` står i JSON bara som `Self` utan id, så mottagartypen måste hämtas
+            # från impl-blocket. Utan den läser en metod som om den inte hade någon typ.
+            return self.type_refs(inner["function"].get("sig")) | self.owner_of(item_id)
         if kind in ("struct", "enum", "union"):
             out: set[str] = set()
-            for child_id in member_ids(inner[kind]):
-                child = self.index.get(str(child_id))
+            for member in self.members(item_id, used):
+                child = self.index.get(member)
                 if child is not None:
                     out |= self.type_refs(child.get("inner"))
             return out
         if kind == "trait":
             out = set()
             for member in inner["trait"].get("items", []):
-                out |= self.surface_of(str(member))
+                out |= self.surface_of(str(member), used)
             return out
         if kind in ("struct_field", "variant", "type_alias", "constant", "static"):
             return self.type_refs(inner)
         return set()
 
-    def closure(self, root: str) -> set[str]:
+    def closure(self, root: str, used: set[str] | None = None) -> set[str]:
         """Transitiv kontraktsslutning. Gratis-items avslutar vandringen: kan läsaren
         redan typen behöver hen inte heller dess inre."""
         seen: set[str] = set()
@@ -199,19 +278,19 @@ class Crate:
                 continue
             seen.add(cur)
             if not self.is_free(cur):
-                queue.extend(self.surface_of(cur))
+                queue.extend(self.surface_of(cur, used))
         return seen
 
     def footprint(self, item_id: str) -> Footprint:
-        item = self.index.get(item_id, {})
         body = self.body_text(item_id)
+        used = used_names(body) if self.use_directed else None
         charged: list[tuple[str, int]] = []
         free = 0
-        for dep in sorted(self.closure(item_id)):
+        for dep in sorted(self.closure(item_id, used)):
             if self.is_free(dep):
                 free += 1
                 continue
-            tokens = self.count_tokens(self.contract_text(dep))
+            tokens = self.count_tokens(self.contract_text(dep, used))
             if tokens:
                 charged.append((self.name_of(dep), tokens))
         charged.sort(key=lambda pair: -pair[1])
@@ -234,9 +313,34 @@ class Crate:
             return "::".join(entry["path"])
         return f"#{item_id}"
 
+    def owner_of(self, item_id: str) -> set[str]:
+        """Typen en metod hänger på, hämtad ur dess impl-block."""
+        if self._owners is None:
+            owners: dict[str, set[str]] = {}
+            for candidate, item in self.index.items():
+                if kind_of(item) != "impl":
+                    continue
+                impl = item["inner"]["impl"]
+                if impl.get("is_synthetic"):
+                    continue
+                refs = self.type_refs(impl.get("for"))
+                for member in impl.get("items", []):
+                    owners.setdefault(str(member), set()).update(refs)
+            self._owners = owners
+        return self._owners.get(item_id, set())
+
+    def is_written_function(self, item_id: str) -> bool:
+        """Om utdraget verkligen är en skriven funktion och inte något genererat."""
+        item = self.index.get(item_id)
+        if item is None or kind_of(item) != "function":
+            return False
+        return bool(_FN_START.match(self.source(item)))
+
     def local_functions(self) -> Iterable[str]:
         for item_id, item in self.index.items():
-            if kind_of(item) == "function" and self.crate_of(item_id) == LOCAL:
+            if kind_of(item) != "function" or self.crate_of(item_id) != LOCAL:
+                continue
+            if self.is_written_function(item_id):
                 yield item_id
 
 

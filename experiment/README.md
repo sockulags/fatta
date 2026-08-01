@@ -37,18 +37,59 @@ cargo test
 
 ## Mäta
 
-**Inte ännu.** CF laddar i dag för hela typdefinitioner i stället för de medlemmar koden
-faktiskt rör, vilket systematiskt straffar breda strukturer. Mäts tvillingarna med det
-måttet är jämförelsen riggad mot den enhetliga varianten innan den börjat.
-
-Den användningsstyrda lagningen ska in först. Därefter:
-
 ```bash
 cargo rustdoc -p layered -- -Zunstable-options --output-format json --document-private-items
 cargo rustdoc -p uniform -- -Zunstable-options --output-format json --document-private-items
-uv run fatta scan experiment/target/doc/layered.json
-uv run fatta scan experiment/target/doc/uniform.json
+uv run fatta scan experiment/target/doc/layered.json --src-root experiment
 ```
+
+Spans i ett workspace är relativa till workspace-roten, inte till paketet — därav
+`--src-root experiment`.
+
+## Utfall (2026-08-01)
+
+Parvis per operation, alltså samma beteende jämfört mot sig självt. Kropp är funktionens
+egen text, slutning är vad man måste läsa utöver den. Skiktade varianten delar flera
+operationer över api- och service-nivån, så alla funktioner med samma namn summeras.
+
+| operation | skiktad kropp | skiktad slutning | enhetlig kropp | enhetlig slutning |
+|---|---|---|---|---|
+| create_list | 176 | 204 | 50 | 14 |
+| add | 281 | 128 | 256 | 14 |
+| complete | 154 | 103 | 122 | 14 |
+| reopen | 69 | 90 | 49 | 14 |
+| tag | 74 | 90 | 51 | 14 |
+| move_under | 268 | 108 | 192 | 14 |
+| tree | 170 | 100 | 59 | 6 |
+| search | 232 | 100 | 158 | 6 |
+| **summa** | **1424** | **923** | **937** | **96** |
+
+Kropparna skiljer 1,5 gånger. **Slutningarna skiljer 9,6 gånger.** Skillnaden sitter alltså
+inte i hur mycket kod som skrivits utan i hur mycket annat man måste kunna för att läsa den.
+
+Och den enhetliga slutningen är i praktiken konstant — 14, 14, 14, 14, 14, 6, 6 — eftersom
+varje operation arbetar på samma sorts sak. Det är precis vad enhetlig rekursion förutsäger:
+kostnaden växer inte med operationen. Riktningen håller även med det gamla måttet
+(`--whole-types`), så den är inte en artefakt av den användningsstyrda lagningen.
+
+## Varför siffran inte ska övertolkas
+
+**n = 1, och samma person skrev båda.** Jag kände hypotesen medan jag skrev. Att den
+skiktade varianten omedvetet blivit tyngre går inte att utesluta. Det som talar emot är att
+båda klarar identiska tester, att median-LOC är 6 i båda, och att kropparna bara skiljer
+1,5 gånger — hade jag bara skrivit mer kod i den ena hade den skillnaden varit större.
+
+**CF är fortfarande en oprövad proxy.** Måttet har aldrig visats förutsäga att en modell
+faktiskt misslyckas. Det här mäter slutningens storlek, inte svårighet.
+
+**Den enhetliga varianten koncentrerar komplexiteten.** Dess tyngsta funktion, `store::load`
+på 482, är värre än den skiktades värsta på 308 — men av kroppslängd, inte av slutning.
+
+**Och det allvarligaste: CF ser inte vad man gav upp.** Den enhetliga varianten kastade
+statiska garantier — `done` är strängen `"1"` — och det sänker slutningen utan att kosta
+något i måttet. Optimerar man CF rakt av är den degenererade lösningen `fn do(x: &str) ->
+String` överallt, med slutning noll. **CF belönar alltså precis det som gör verifiering
+svårare**, och får därför aldrig bli ett optimeringsmål utan en motvikt som mäter garantier.
 
 ## Vad som redan syns utan mätning
 

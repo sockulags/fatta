@@ -18,7 +18,10 @@ from .metric import Crate, Footprint
 
 
 def load_crate(
-    doc_path: Path, include_docs: bool, src_root: Path | None = None
+    doc_path: Path,
+    include_docs: bool,
+    src_root: Path | None = None,
+    use_directed: bool = True,
 ) -> tuple[str, Crate]:
     doc = json.loads(doc_path.read_text(encoding="utf-8"))
     version = doc.get("format_version")
@@ -29,7 +32,9 @@ def load_crate(
             file=sys.stderr,
         )
     root = sources.locate(doc, doc_path, src_root)
-    crate = Crate.from_doc(doc, src_root=root, include_docs=include_docs)
+    crate = Crate.from_doc(
+        doc, src_root=root, include_docs=include_docs, use_directed=use_directed
+    )
     if not crate.body_text(next(iter(crate.local_functions()), "")):
         print(
             f"varning: hittade ingen källtext under {root} — ange --src-root",
@@ -86,7 +91,9 @@ def write_csv(rows: list[Footprint], path: Path) -> None:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    _, crate = load_crate(args.doc, not args.no_docs, args.src_root)
+    _, crate = load_crate(
+        args.doc, not args.no_docs, args.src_root, not args.whole_types
+    )
     rows = footprints_of(crate)
     if not rows:
         print("inga lokala funktioner hittades i indata", file=sys.stderr)
@@ -126,7 +133,9 @@ def cmd_pairs(args: argparse.Namespace) -> int:
     agree_buckets: list[list[pairs_mod.Pair]] = []
 
     for doc_path in args.docs:
-        name, crate = load_crate(doc_path, not args.no_docs)
+        name, crate = load_crate(
+            doc_path, not args.no_docs, None, not args.whole_types
+        )
         loaded[name] = crate
         selected = pairs_mod.select(
             name, footprints_of(crate), n_disagree, args.controls
@@ -261,6 +270,11 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument(
         "--no-docs", action="store_true", help="räkna inte doc som del av kontraktet"
     )
+    scan.add_argument(
+        "--whole-types",
+        action="store_true",
+        help="ladda för hela typdefinitioner i stället för de medlemmar som används",
+    )
     scan.set_defaults(func=cmd_scan)
 
     pair = sub.add_parser("pairs", help="bygg en blind granskningspack")
@@ -274,6 +288,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pair.add_argument(
         "--no-docs", action="store_true", help="räkna inte doc som del av kontraktet"
+    )
+    pair.add_argument(
+        "--whole-types",
+        action="store_true",
+        help="ladda för hela typdefinitioner i stället för de medlemmar som används",
     )
     pair.set_defaults(func=cmd_pairs)
 
