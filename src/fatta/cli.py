@@ -293,6 +293,21 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ask(args: argparse.Namespace) -> int:
+    """Samma svar som MCP-verktyget, fast på kommandoraden.
+
+    Finns för att indexet ska gå att använda utan MCP-transport — bland annat i
+    A/B-mätningar, där transporten annars blir en variabel som inte hör dit."""
+    doc = args.doc or DEFAULT_INDEX
+    if not doc.is_file():
+        print(f"hittade inget index på {doc}", file=sys.stderr)
+        return 1
+    _, graph = load_crate(doc, include_docs=True)
+    answer = server.what_must_i_know(graph, args.symbol)
+    print(answer.as_json())
+    return 0 if "error" not in answer.payload else 1
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     doc = args.doc or DEFAULT_INDEX
     if not doc.is_file():
@@ -376,6 +391,11 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("tsconfig", type=Path, help="sökväg till tsconfig.json")
     index.add_argument("--out", type=Path, default=DEFAULT_INDEX)
     index.set_defaults(func=cmd_index)
+
+    ask = sub.add_parser("ask", help="fråga indexet vad man måste veta om en symbol")
+    ask.add_argument("symbol", help="funktionens namn")
+    ask.add_argument("doc", type=Path, nargs="?", help=f"index (standard: {DEFAULT_INDEX})")
+    ask.set_defaults(func=cmd_ask)
 
     serve = sub.add_parser("serve", help="kör MCP-servern över ett index")
     serve.add_argument(

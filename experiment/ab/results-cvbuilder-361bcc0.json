@@ -1,0 +1,441 @@
+[
+  {
+    "case": "SkillsPage",
+    "cf": 10492,
+    "loc": 897,
+    "arm": "A",
+    "passed": false,
+    "tokens": 152636,
+    "files": 27,
+    "failing": [
+      "tests/masterdata/skills-add-modal-category-input.test.ts",
+      "tests/masterdata/skills-lang-unsaved-guard.test.ts",
+      "tests/masterdata/skills-toast-copy.test.ts"
+    ]
+  },
+  {
+    "case": "SkillsPage",
+    "cf": 10492,
+    "loc": 897,
+    "arm": "B",
+    "passed": false,
+    "tokens": 137090,
+    "files": 32,
+    "failing": [
+      "tests/masterdata/skills-add-modal-category-input.test.ts",
+      "tests/masterdata/skills-lang-unsaved-guard.test.ts",
+      "tests/masterdata/skills-quality-flags.test.ts",
+      "tests/masterdata/skills-toast-copy.test.ts"
+    ]
+  },
+  {
+    "case": "SkillsPage",
+    "cf": 10492,
+    "loc": 897,
+    "arm": "C",
+    "passed": false,
+    "tokens": 135506,
+    "files": 29,
+    "failing": [
+      "tests/masterdata/skills-add-modal-category-input.test.ts",
+      "tests/masterdata/skills-toast-copy.test.ts"
+    ]
+  },
+  {
+    "case": "POST",
+    "cf": 3318,
+    "loc": 99,
+    "arm": "A",
+    "passed": false,
+    "tokens": 105103,
+    "files": 19,
+    "failing": [
+      "tests/auth/register-otp.test.ts",
+      "tests/auth/register.test.ts"
+    ]
+  },
+  {
+    "case": "POST",
+    "cf": 3318,
+    "loc": 99,
+    "arm": "B",
+    "passed": false,
+    "tokens": 106087,
+    "files": 17,
+    "failing": [
+      "tests/auth/register-otp.test.ts",
+      "tests/auth/register.test.ts"
+    ]
+  },
+  {
+    "case": "POST",
+    "cf": 3318,
+    "loc": 99,
+    "arm": "C",
+    "passed": false,
+    "tokens": 110912,
+    "files": 25,
+    "failing": [
+      "tests/auth/register-otp.test.ts",
+      "tests/auth/register.test.ts"
+    ]
+  },
+  {
+    "case": "processImportJobById",
+    "cf": 1691,
+    "loc": 119,
+    "arm": "A",
+    "passed": false,
+    "tokens": 112209,
+    "files": 28,
+    "failing": [
+      "tests/workflows-import-jobs.test.ts"
+    ]
+  },
+  {
+    "case": "processImportJobById",
+    "cf": 1691,
+    "loc": 119,
+    "arm": "B",
+    "passed": false,
+    "tokens": 126078,
+    "files": 24,
+    "failing": [
+      "tests/workflows-import-jobs.test.ts"
+    ]
+  },
+  {
+    "case": "processImportJobById",
+    "cf": 1691,
+    "loc": 119,
+    "arm": "C",
+    "passed": false,
+    "tokens": 91944,
+    "files": 13,
+    "failing": [
+      "tests/workflows-import-jobs.test.ts"
+    ],
+    "test_counts": {
+      "failed": 2,
+      "passed": 1079
+    }
+  },
+  {
+    "case": "createInterviewPrepSession",
+    "cf": 1060,
+    "loc": 45,
+    "arm": "A",
+    "passed": true,
+    "tokens": 68806,
+    "files": 7,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "createInterviewPrepSession",
+    "cf": 1060,
+    "loc": 45,
+    "arm": "B",
+    "passed": true,
+    "tokens": 69301,
+    "files": 4,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "createInterviewPrepSession",
+    "cf": 1060,
+    "loc": 45,
+    "arm": "C",
+    "passed": true,
+    "tokens": 71909,
+    "files": 7,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "ConfirmModal",
+    "cf": 754,
+    "loc": 64,
+    "arm": "A",
+    "passed": false,
+    "tokens": 60140,
+    "files": 8,
+    "failing": [
+      "tests/ui/confirm-modal-failure.test.ts"
+    ],
+    "test_counts": {
+      "failed": 3,
+      "passed": 1078
+    }
+  },
+  {
+    "case": "ConfirmModal",
+    "cf": 754,
+    "loc": 64,
+    "arm": "B",
+    "passed": false,
+    "tokens": 54355,
+    "files": 8,
+    "failing": [
+      "tests/ui/confirm-modal-failure.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "ConfirmModal",
+    "cf": 754,
+    "loc": 64,
+    "arm": "C",
+    "passed": false,
+    "tokens": 62621,
+    "files": 11,
+    "failing": [
+      "tests/ui/confirm-modal-failure.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "buildAtsParsePreview",
+    "cf": 626,
+    "loc": 45,
+    "arm": "A",
+    "passed": false,
+    "tokens": 62311,
+    "files": 6,
+    "failing": [
+      "tests/ats/parse-preview.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "buildAtsParsePreview",
+    "cf": 626,
+    "loc": 45,
+    "arm": "B",
+    "passed": false,
+    "tokens": 65095,
+    "files": 4,
+    "failing": [
+      "tests/ats/parse-preview.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "buildAtsParsePreview",
+    "cf": 626,
+    "loc": 45,
+    "arm": "C",
+    "passed": false,
+    "tokens": 56566,
+    "files": 7,
+    "failing": [
+      "tests/ats/parse-preview.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "applyExperienceOverride",
+    "cf": 505,
+    "loc": 33,
+    "arm": "A",
+    "passed": true,
+    "tokens": 73880,
+    "files": 10,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "applyExperienceOverride",
+    "cf": 505,
+    "loc": 33,
+    "arm": "B",
+    "passed": true,
+    "tokens": 66331,
+    "files": 10,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "applyExperienceOverride",
+    "cf": 505,
+    "loc": 33,
+    "arm": "C",
+    "passed": true,
+    "tokens": 70943,
+    "files": 26,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "DELETE",
+    "cf": 416,
+    "loc": 21,
+    "arm": "A",
+    "passed": false,
+    "tokens": 53289,
+    "files": 6,
+    "failing": [
+      "tests/interview-prep-sessions-route.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "DELETE",
+    "cf": 416,
+    "loc": 21,
+    "arm": "B",
+    "passed": false,
+    "tokens": 48460,
+    "files": 3,
+    "failing": [
+      "tests/interview-prep-sessions-route.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "DELETE",
+    "cf": 416,
+    "loc": 21,
+    "arm": "C",
+    "passed": false,
+    "tokens": 56482,
+    "files": 12,
+    "failing": [
+      "tests/interview-prep-sessions-route.test.ts"
+    ],
+    "test_counts": {
+      "failed": 1,
+      "passed": 1080
+    }
+  },
+  {
+    "case": "GET",
+    "cf": 352,
+    "loc": 8,
+    "arm": "A",
+    "passed": true,
+    "tokens": 72228,
+    "files": 4,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "GET",
+    "cf": 352,
+    "loc": 8,
+    "arm": "B",
+    "passed": true,
+    "tokens": 65615,
+    "files": 3,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "GET",
+    "cf": 352,
+    "loc": 8,
+    "arm": "C",
+    "passed": true,
+    "tokens": 58882,
+    "files": 3,
+    "failing": [],
+    "test_counts": {
+      "failed": 0,
+      "passed": 1081
+    }
+  },
+  {
+    "case": "readiness",
+    "cf": 283,
+    "loc": 25,
+    "arm": "A",
+    "passed": false,
+    "tokens": 59827,
+    "files": 3,
+    "failing": [
+      "tests/ats/parse-preview.test.ts"
+    ],
+    "test_counts": {
+      "failed": 2,
+      "passed": 1079
+    }
+  },
+  {
+    "case": "readiness",
+    "cf": 283,
+    "loc": 25,
+    "arm": "B",
+    "passed": false,
+    "tokens": 59117,
+    "files": 6,
+    "failing": [
+      "tests/ats/parse-preview.test.ts"
+    ],
+    "test_counts": {
+      "failed": 2,
+      "passed": 1079
+    }
+  },
+  {
+    "case": "readiness",
+    "cf": 283,
+    "loc": 25,
+    "arm": "C",
+    "passed": false,
+    "tokens": 48292,
+    "files": 2,
+    "failing": [
+      "tests/ats/parse-preview.test.ts"
+    ],
+    "test_counts": {
+      "failed": 2,
+      "passed": 1079
+    }
+  }
+]
