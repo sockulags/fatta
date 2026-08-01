@@ -138,11 +138,24 @@ function collect(node, sourceFile, into) {
       }
     }
 
-    // (3) sökvägsliteral till en produktionsfil
+    // (3) sökvägsliteral till en produktionsfil — källäsande test
     if (ts.isStringLiteralLike(child) && PATHISH.test(child.text)) {
       const candidate = path.join(projectDir, child.text);
       if (fs.existsSync(candidate) && isLocalProduction(candidate)) {
         into.files.add(rel(candidate));
+        into.sourceReads.add(rel(candidate));
+      }
+    }
+
+    // Fabrikationskast: `as any`/`as unknown` är sättet att konstruera ett värde
+    // produktionens typer inte tillåter — fingeravtrycket för påhittade tillstånd.
+    if (ts.isAsExpression(child)) {
+      const typeText = child.type.getText();
+      if (typeText === "any" || typeText === "unknown" || typeText === "never") {
+        into.casts.push({
+          line: sourceFile.getLineAndCharacterOfPosition(child.getStart()).line + 1,
+          text: child.getText().replace(/\s+/g, " ").slice(0, 120),
+        });
       }
     }
 
@@ -198,6 +211,8 @@ function emptyBag(helpers) {
   return {
     targets: new Map(),
     files: new Set(),
+    sourceReads: new Set(),
+    casts: [],
     assertions: [],
     helpers,
     calledHelpers: new Set(),
@@ -301,6 +316,9 @@ for (const file of program.getSourceFiles()) {
           line: file.getLineAndCharacterOfPosition(node.getStart()).line + 1,
           targets: [...bag.targets.values()],
           file_targets: [...new Set([...bag.files, ...fileImports])],
+          source_reads: [...bag.sourceReads],
+          casts: bag.casts,
+          expect_errors: (node.getFullText().match(/@ts-expect-error|@ts-ignore/g) || []).length,
           assertions: bag.assertions,
         });
         return;

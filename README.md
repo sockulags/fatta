@@ -122,6 +122,23 @@ Validerad mot experimentets facit — de empiriskt uppmätta domarfilerna per fa
 främsta förutsägelsen är en verklig domare i 10 av 13 fall, och 11 av 13 fall har minst
 en domare i listan. Missarna är djup indirektion via komponentträd.
 
+### Städkön: `fatta testhealth`
+
+Äkta onåbarhet är oavgörbar, men ett test som spikar ett tillstånd produktionen aldrig
+producerar måste bryta sig ur något, och brotten syns: typkast (`as any`/`as unknown`)
+vid anrop av produktionskod, källäsande tester som regexar produktionsfilen, långa
+literaler spikade på interna funktioner, och `@ts-expect-error`. Vattenlinjen — att
+testet direktanropar en intern funktion i stället för att gå genom entrypointen — läggs
+till som kontext när en annan signal slagit: den säger var det fabricerade tillståndet
+uppstod, nedanför valideringen.
+
+```bash
+fatta testhealth        # rankad granskningskö med belägg per rad
+```
+
+Kö att granska, inte dom: varje signal har legitima undantag (partiella fixturer,
+medveten isolering, avsiktliga brand-/copytester).
+
 ## Indexet som tjänst
 
 ```bash

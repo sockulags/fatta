@@ -12,6 +12,7 @@ from pathlib import Path
 from . import pairs as pairs_mod
 from . import sources
 from . import surprisal as surprisal_mod
+from . import testhealth as testhealth_mod
 from . import testmap as testmap_mod
 from . import rustdoc
 from . import server
@@ -337,6 +338,24 @@ def cmd_tests(args: argparse.Namespace) -> int:
     return 0 if found else 1
 
 
+def cmd_testhealth(args: argparse.Namespace) -> int:
+    """Städkön: tester som spikar tillstånd produktionen inte kan producera."""
+    map_path = args.map or DEFAULT_TESTMAP
+    if not map_path.is_file():
+        print(f"hittade ingen testkarta på {map_path}", file=sys.stderr)
+        return 1
+    tm = testmap_mod.load(map_path)
+    graph = None
+    graph_path = args.graph or DEFAULT_INDEX
+    if graph_path.is_file():
+        _, graph = load_crate(graph_path, include_docs=True)
+    else:
+        print("obs: ingen graf hittad — vattenlinjesignalen utelämnas", file=sys.stderr)
+    findings = testhealth_mod.analyze(tm, graph)
+    print(testhealth_mod.render(findings, args.limit if args.limit else len(findings)))
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     doc = args.doc or DEFAULT_INDEX
     if not doc.is_file():
@@ -440,6 +459,12 @@ def build_parser() -> argparse.ArgumentParser:
     tq.add_argument("--map", type=Path, help=f"testkarta (standard: {DEFAULT_TESTMAP})")
     tq.add_argument("--file", help="filtrera på symbolens filväg (vid namnkrockar)")
     tq.set_defaults(func=cmd_tests)
+
+    th = sub.add_parser("testhealth", help="tester som spikar ouppnåeliga tillstånd, rankade")
+    th.add_argument("--map", type=Path, help=f"testkarta (standard: {DEFAULT_TESTMAP})")
+    th.add_argument("--graph", type=Path, help=f"graf för vattenlinjen (standard: {DEFAULT_INDEX})")
+    th.add_argument("--limit", type=int, default=25)
+    th.set_defaults(func=cmd_testhealth)
 
     serve = sub.add_parser("serve", help="kör MCP-servern över ett index")
     serve.add_argument(

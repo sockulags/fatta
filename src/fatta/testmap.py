@@ -26,7 +26,10 @@ class TestCase:
     line: int
     targets: tuple[dict, ...]
     file_targets: tuple[str, ...]
-    assertions: tuple[dict, ...]
+    source_reads: tuple[str, ...] = ()
+    casts: tuple[dict, ...] = ()
+    expect_errors: int = 0
+    assertions: tuple[dict, ...] = ()
 
 
 @dataclass
@@ -136,6 +139,9 @@ def parse(data: dict) -> TestMap:
             line=raw.get("line") or 0,
             targets=tuple(raw.get("targets") or ()),
             file_targets=tuple(raw.get("file_targets") or ()),
+            source_reads=tuple(raw.get("source_reads") or ()),
+            casts=tuple(raw.get("casts") or ()),
+            expect_errors=raw.get("expect_errors") or 0,
             assertions=tuple(raw.get("assertions") or ()),
         )
         for raw in data.get("tests") or []
