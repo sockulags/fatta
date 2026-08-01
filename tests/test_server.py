@@ -112,6 +112,8 @@ def test_tools_list_beskriver_verktygen() -> None:
         "what_must_i_know",
         "doc_leverage",
         "which_tests_pin",
+        "list_symbols",
+        "test_health",
     }
 
 

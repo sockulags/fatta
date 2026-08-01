@@ -174,7 +174,65 @@ def which_tests_pin(graph: Graph, tmap, symbol: str, file_hint: str | None) -> A
     )
 
 
+def list_symbols(graph: Graph) -> Answer:
+    """Alla lokala funktioner — navigationsytan för både GUI och agent."""
+    rows = sorted(
+        (
+            {"name": item.name, "file": item.file, "line": item.line}
+            for item in (graph.get(i) for i in graph.local_functions())
+            if item is not None
+        ),
+        key=lambda row: (row["file"], row["line"]),
+    )
+    return Answer("list_symbols", {"symbols": rows, "count": len(rows)})
+
+
+def test_health(graph: Graph, tmap, repo: str = ".") -> Answer:
+    """Städkön som data: samma analys som `fatta testhealth`, för båda ytorna."""
+    from pathlib import Path
+
+    from . import testhealth as th
+
+    if tmap is None:
+        return Answer("test_health", {"error": "ingen testkarta laddad"})
+    findings = th.analyze(tmap, graph)
+    churn = th.measure_churn(tmap, Path(repo))
+    return Answer(
+        "test_health",
+        {
+            "findings": [
+                {
+                    "file": f.test.file,
+                    "line": f.test.line,
+                    "name": f"{f.test.suite} › {f.test.name}" if f.test.suite else f.test.name,
+                    "score": f.score,
+                    "reasons": f.reasons,
+                }
+                for f in findings
+            ],
+            "churn": [
+                {"file": file, "total": c.total, "test_only": c.test_only}
+                for file, c in sorted(churn.items(), key=lambda kv: -kv[1].test_only)
+                if c.test_only >= 2
+            ],
+        },
+    )
+
+
 TOOLS = [
+    {
+        "name": "list_symbols",
+        "description": "Alla lokala funktioner med fil och rad — navigationsytan.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "test_health",
+        "description": (
+            "Tester som spikar tillstånd produktionen inte kan producera, rankade, "
+            "plus testfiler som lagats utan att deras mål ändrats."
+        ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
     {
         "name": "which_tests_pin",
         "description": (
@@ -217,6 +275,10 @@ TOOLS = [
 
 
 def dispatch(graph: Graph, name: str, arguments: dict, tmap=None) -> Answer:
+    if name == "list_symbols":
+        return list_symbols(graph)
+    if name == "test_health":
+        return test_health(graph, tmap, arguments.get("repo", "."))
     if name == "which_tests_pin":
         return which_tests_pin(graph, tmap, arguments.get("symbol", ""), arguments.get("file_hint"))
     if name == "what_must_i_know":

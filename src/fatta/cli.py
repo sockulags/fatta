@@ -360,6 +360,28 @@ def cmd_testhealth(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gui(args: argparse.Namespace) -> int:
+    """Lokalt GUI över samma dispatch som MCP-servern."""
+    from . import gui as gui_mod
+
+    doc = args.doc or DEFAULT_INDEX
+    if not doc.is_file():
+        print(
+            f"hittade inget index på {doc}. Bygg det med: fatta index <tsconfig.json>",
+            file=sys.stderr,
+        )
+        return 1
+    _, graph = load_crate(doc, include_docs=True)
+    tmap = None
+    tmap_path = args.testmap or DEFAULT_TESTMAP
+    if tmap_path.is_file():
+        tmap = testmap_mod.load(tmap_path)
+    gui_mod.serve_gui(
+        graph, tmap=tmap, port=args.port, repo=str(args.repo), open_browser=not args.no_open
+    )
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     doc = args.doc or DEFAULT_INDEX
     if not doc.is_file():
@@ -470,6 +492,14 @@ def build_parser() -> argparse.ArgumentParser:
     th.add_argument("--limit", type=int, default=25)
     th.add_argument("--repo", type=Path, default=Path("."), help="git-repo för churn-historiken")
     th.set_defaults(func=cmd_testhealth)
+
+    gui = sub.add_parser("gui", help="lokalt GUI över samma operationer som MCP-servern")
+    gui.add_argument("doc", type=Path, nargs="?", help=f"index (standard: {DEFAULT_INDEX})")
+    gui.add_argument("--testmap", type=Path, help=f"testkarta (standard: {DEFAULT_TESTMAP})")
+    gui.add_argument("--port", type=int, default=4715)
+    gui.add_argument("--repo", type=Path, default=Path("."), help="git-repo för churn")
+    gui.add_argument("--no-open", action="store_true", help="öppna inte webbläsaren")
+    gui.set_defaults(func=cmd_gui)
 
     serve = sub.add_parser("serve", help="kör MCP-servern över ett index")
     serve.add_argument(
