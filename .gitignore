@@ -7,3 +7,6 @@ out/
 
 # Cargo.lock checkas in med flit: korpusens versioner måste vara pinnade för att
 # mätningar ska gå att jämföra mellan körningar.
+
+# Cachade överraskningsvikter är maskinlokala
+.fatta-surprisal.json

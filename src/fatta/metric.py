@@ -87,6 +87,11 @@ class Crate:
     bara skickar ett värde vidare får betala för att förstå något den aldrig öppnar."""
     wellknown: frozenset[str] = WELLKNOWN
     count_tokens: Callable[[str], int] = estimate_tokens
+    weigh: Callable[[str, str, str], float] | None = None
+    """Vikt per kontrakt efter hur oväntat det är, som `(namn, sort, text) -> [0, 1]`.
+
+    Utan viktning räknas ren storlek, vilket behandlar ett självklart kontrakt som lika
+    dyrt som ett obegripligt. Se `surprisal`."""
     _src_cache: dict[str, list[str]] = field(default_factory=dict, repr=False)
     _owners: dict[str, set[str]] | None = field(default=None, repr=False)
 
@@ -290,7 +295,13 @@ class Crate:
             if self.is_free(dep):
                 free += 1
                 continue
-            tokens = self.count_tokens(self.contract_text(dep, used))
+            contract = self.contract_text(dep, used)
+            tokens = self.count_tokens(contract)
+            if self.weigh is not None:
+                item = self.index.get(dep, {})
+                tokens = round(
+                    tokens * self.weigh(self.name_of(dep), kind_of(item), contract)
+                )
             if tokens:
                 charged.append((self.name_of(dep), tokens))
         charged.sort(key=lambda pair: -pair[1])

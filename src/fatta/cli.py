@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import pairs as pairs_mod
 from . import sources
+from . import surprisal as surprisal_mod
 from .metric import Crate, Footprint
 
 
@@ -91,10 +92,27 @@ def write_csv(rows: list[Footprint], path: Path) -> None:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    _, crate = load_crate(
+    name, crate = load_crate(
         args.doc, not args.no_docs, args.src_root, not args.whole_types
     )
+    weighing = None
+    if args.surprisal:
+        weighing = surprisal_mod.Weighing(
+            predictor=surprisal_mod.ollama(args.surprisal),
+            crate_name=name,
+            cache_path=args.surprisal_cache,
+        )
+        crate.weigh = weighing.weight
+
     rows = footprints_of(crate)
+    if weighing is not None:
+        weighing.save()
+        if weighing.failures:
+            print(
+                f"varning: {weighing.failures} kontrakt kunde inte viktas och räknas"
+                " med full vikt — kör Ollama igång?",
+                file=sys.stderr,
+            )
     if not rows:
         print("inga lokala funktioner hittades i indata", file=sys.stderr)
         return 1
@@ -274,6 +292,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--whole-types",
         action="store_true",
         help="ladda för hela typdefinitioner i stället för de medlemmar som används",
+    )
+    scan.add_argument(
+        "--surprisal",
+        metavar="MODELL",
+        help=(
+            "vikta kontrakt efter hur oväntade de är, via en lokal Ollama-modell"
+            " (t.ex. qwen2.5-coder:14b)"
+        ),
+    )
+    scan.add_argument(
+        "--surprisal-cache",
+        type=Path,
+        default=Path(".fatta-surprisal.json"),
+        help="var vikterna sparas mellan körningar",
     )
     scan.set_defaults(func=cmd_scan)
 
