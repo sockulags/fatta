@@ -72,12 +72,51 @@ cargo rustdoc --lib -- -Zunstable-options --output-format json --document-privat
 Kör mätningen:
 
 ```bash
-uv run fatta target/doc/<crate>.json
+uv run fatta scan target/doc/<crate>.json
 ```
 
 Nyttiga flaggor: `--no-docs` utesluter doc-kommentarer ur beroendenas kontrakt, `--csv FIL`
 skriver resultatet för vidare analys, `--top N` kortar tabellen, och `--src-root DIR` behövs
-när källkoden inte ligger tre nivåer ovanför JSON-filen.
+när källkoden inte ligger tre nivåer ovanför JSON-filen. För crates hämtade från crates.io
+hittas källan automatiskt i registrets cache.
+
+## Den blinda granskningen
+
+Innan pengar läggs på modellkörningar behöver måttet passera en mänsklig grind: rangordnar
+CF kod i en ordning som stämmer med en erfaren utvecklares magkänsla för vad som är svårt?
+
+Ett slumpurval duger inte, för CF och radantal är överens i de flesta fall. Det som skiljer
+måtten åt är paren där de rankar **tvärtom**. `fatta pairs` plockar fram dem, parar ihop dem
+inom samma crate, och renderar varje par utan poäng — med slumpad men deterministisk
+A/B-ordning, och kontrakten sorterade alfabetiskt i stället för på storlek, så att inget
+läcker vilken funktion måttet pekar ut.
+
+```bash
+bash scripts/build-corpus.sh
+uv run fatta pairs corpus/target/doc/*.json --out granskning
+```
+
+Fyll i `granskning/granskningsark.md` och utvärdera:
+
+```bash
+uv run fatta score granskning/facit.json granskning/granskningsark.md
+```
+
+Packen innehåller även kontrollpar där måtten är överens. De finns för att fånga om svaren är
+slumpmässiga: ligger även kontrollerna kring hälften rätt bär inget av måtten, och då säger
+oenigheterna ingenting heller.
+
+### Mätkorpusen
+
+Fyra crates valda för olika kodform snarare än popularitet, med versioner pinnade i
+`corpus/Cargo.lock`:
+
+- **semver** — parsning och jämförelser, välkommenterat; där doc-konfundenten slår hårdast
+- **serde_json** — stora delade typer som tråcklas genom allt; där CF borde slå radantal
+- **memchr** — algoritmisk kod med nästan inga egna typer; negativ kontroll
+- **tokio-util** — asynkront, där svårigheten sitter i livstider och avbrottssäkerhet snarare
+  än i typer. Medtaget som förutspått misslyckande: att skriva ner var måttet väntas fallera
+  innan mätningen är skillnaden mellan ett test och en efterhandskonstruktion.
 
 ## Status och öppna frågor
 
@@ -93,6 +132,14 @@ experimentet — frågan går inte att avgöra från fåtöljen.
 **Modulen ser ut att vara rätt enhet.** Alla `matches_*`-funktioner i `semver` landar inom
 några procent av varandra eftersom de delar slutning. Funktionsnivån är förmodligen för fin
 för en budget.
+
+**Oenigheterna domineras av delegerande omslag.** I riktig Rust är de skarpaste fallen där CF
+och radantal pekar åt olika håll nästan alltid korta funktioner som bara vidarebefordrar —
+`find_iter`, `framed`, `from_value`. De rör många typer men *förstår* ingen av dem. CF som det
+är definierat nu kan inte skilja "du måste begripa den här slutningen" från "du måste bara
+skicka den vidare". Faller granskningen på just de paren är det förmodligen det som ska lagas,
+snarare än måttet i stort: slutningen kan behöva viktas efter om funktionen rör typens inre
+eller bara passerar den vidare.
 
 **Tokenräkningen är en uppskattning.** `estimate_tokens` är teckenbaserad. Den duger för
 rangordning men måste bytas mot en riktig tokenizer innan absoluta gränsvärden betyder något.

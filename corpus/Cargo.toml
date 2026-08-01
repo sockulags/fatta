@@ -1,0 +1,20 @@
+[package]
+name = "corpus"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Mätkorpus, vald för olika kodformer snarare än popularitet:
+#   semver      — parsning och jämförelser, välkommenterat (doc-konfundenten som starkast)
+#   serde_json  — stora delade typer som tråcklas genom allt (där CF borde slå radantal)
+#   memchr      — algoritmisk kod med nästan inga egna typer (negativ kontroll)
+#   tokio-util  — asynkront, där svårigheten sitter i livstider snarare än i typer
+#                 (förutspått misslyckande, medtaget just därför)
+[dependencies]
+semver = "1"
+serde_json = "1"
+memchr = "2"
+tokio-util = { version = "0.7", features = ["full"] }
+
+[lib]
+path = "src/lib.rs"

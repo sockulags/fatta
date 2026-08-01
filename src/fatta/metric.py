@@ -97,7 +97,11 @@ class Crate:
         return self._src_cache[filename]
 
     def source(self, item: dict) -> str:
-        """Klipper ut ett items källtext ur dess span."""
+        """Klipper ut ett items källtext ur dess span.
+
+        Rustdoc räknar både rad och kolumn från ett, och slutkolumnen är exklusiv. Utan
+        kolumnkorrigeringen tappar varje utdrag sitt första tecken.
+        """
         span = item.get("span")
         if not span:
             return ""
@@ -108,11 +112,12 @@ class Crate:
         chunk = lines[begin_line - 1 : end_line]
         if not chunk:
             return ""
+        start, stop = max(0, begin_col - 1), max(0, end_col - 1)
         if len(chunk) == 1:
-            return chunk[0][begin_col:end_col]
+            return chunk[0][start:stop]
         chunk = list(chunk)
-        chunk[0] = chunk[0][begin_col:]
-        chunk[-1] = chunk[-1][:end_col]
+        chunk[0] = chunk[0][start:]
+        chunk[-1] = chunk[-1][:stop]
         return "\n".join(chunk)
 
     # -- kontrakt kontra kropp --------------------------------------------------

@@ -76,6 +76,15 @@ def test_egen_kropp_raknas(crate: Crate) -> None:
     assert "wrapping_mul" in body
 
 
+def test_utdraget_borjar_och_slutar_ratt(crate: Crate) -> None:
+    """Spans är ettbaserade i kolumn. Matchar man bara på delsträngar syns det inte att
+    första tecknet fallit bort, så kanterna testas uttryckligen."""
+    body = crate.body_text(find(crate, "checksum"))
+
+    assert body.startswith("pub fn checksum"), body[:40]
+    assert body.rstrip().endswith("}"), body[-40:]
+
+
 def test_doc_paverkar_matningen() -> None:
     """Doc-kommentarer i beroendens kontrakt är en öppen designfråga — de ska gå att
     slå av, och det ska synas i siffran."""

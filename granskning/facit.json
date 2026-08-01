@@ -1,0 +1,218 @@
+[
+  {
+    "par": 1,
+    "crate": "semver",
+    "svar_cf": "A",
+    "svar_loc": "B",
+    "oenigt": true,
+    "styrka": 0.829,
+    "tyngre": {
+      "namn": "pre_is_compatible",
+      "cf": 2729,
+      "loc": 6
+    },
+    "lattare": {
+      "namn": "pad",
+      "cf": 251,
+      "loc": 35
+    }
+  },
+  {
+    "par": 2,
+    "crate": "serde_json",
+    "svar_cf": "B",
+    "svar_loc": "A",
+    "oenigt": true,
+    "styrka": 0.71,
+    "tyngre": {
+      "namn": "from_value",
+      "cf": 1112,
+      "loc": 6
+    },
+    "lattare": {
+      "namn": "parse_line_col",
+      "cf": 323,
+      "loc": 41
+    }
+  },
+  {
+    "par": 3,
+    "crate": "memchr",
+    "svar_cf": "B",
+    "svar_loc": "A",
+    "oenigt": true,
+    "styrka": 0.882,
+    "tyngre": {
+      "namn": "find_iter",
+      "cf": 5101,
+      "loc": 6
+    },
+    "lattare": {
+      "namn": "is_equal_raw",
+      "cf": 529,
+      "loc": 51
+    }
+  },
+  {
+    "par": 4,
+    "crate": "tokio_util",
+    "svar_cf": "B",
+    "svar_loc": "A",
+    "oenigt": true,
+    "styrka": 0.812,
+    "tyngre": {
+      "namn": "track_future",
+      "cf": 1711,
+      "loc": 6
+    },
+    "lattare": {
+      "namn": "poll_read_buf",
+      "cf": 269,
+      "loc": 32
+    }
+  },
+  {
+    "par": 5,
+    "crate": "semver",
+    "svar_cf": "A",
+    "svar_loc": "B",
+    "oenigt": true,
+    "styrka": 0.621,
+    "tyngre": {
+      "namn": "matches_impl",
+      "cf": 2807,
+      "loc": 11
+    },
+    "lattare": {
+      "namn": "numeric_identifier",
+      "cf": 468,
+      "loc": 29
+    }
+  },
+  {
+    "par": 6,
+    "crate": "serde_json",
+    "svar_cf": "B",
+    "svar_loc": "A",
+    "oenigt": true,
+    "styrka": 0.571,
+    "tyngre": {
+      "namn": "to_value",
+      "cf": 1111,
+      "loc": 6
+    },
+    "lattare": {
+      "namn": "entry",
+      "cf": 226,
+      "loc": 14
+    }
+  },
+  {
+    "par": 7,
+    "crate": "memchr",
+    "svar_cf": "B",
+    "svar_loc": "A",
+    "oenigt": true,
+    "styrka": 0.667,
+    "tyngre": {
+      "namn": "prefilter_kind_avx2",
+      "cf": 2016,
+      "loc": 11
+    },
+    "lattare": {
+      "namn": "find_raw",
+      "cf": 457,
+      "loc": 33
+    }
+  },
+  {
+    "par": 8,
+    "crate": "tokio_util",
+    "svar_cf": "A",
+    "svar_loc": "B",
+    "oenigt": true,
+    "styrka": 0.6,
+    "tyngre": {
+      "namn": "framed",
+      "cf": 849,
+      "loc": 6
+    },
+    "lattare": {
+      "namn": "ms",
+      "cf": 132,
+      "loc": 15
+    }
+  },
+  {
+    "par": 9,
+    "crate": "semver",
+    "svar_cf": "A",
+    "svar_loc": "B",
+    "oenigt": true,
+    "styrka": 0.537,
+    "tyngre": {
+      "namn": "matches_tilde",
+      "cf": 2779,
+      "loc": 19
+    },
+    "lattare": {
+      "namn": "identifier",
+      "cf": 632,
+      "loc": 41
+    }
+  },
+  {
+    "par": 10,
+    "crate": "semver",
+    "svar_cf": "A",
+    "svar_loc": "A",
+    "oenigt": false,
+    "styrka": 0.868,
+    "tyngre": {
+      "namn": "decode_len",
+      "cf": 475,
+      "loc": 38
+    },
+    "lattare": {
+      "namn": "bytes_for_varint",
+      "cf": 52,
+      "loc": 5
+    }
+  },
+  {
+    "par": 11,
+    "crate": "serde_json",
+    "svar_cf": "A",
+    "svar_loc": "A",
+    "oenigt": false,
+    "styrka": 0.919,
+    "tyngre": {
+      "namn": "parse_unicode_escape",
+      "cf": 1416,
+      "loc": 74
+    },
+    "lattare": {
+      "namn": "starts_with_digit",
+      "cf": 46,
+      "loc": 6
+    }
+  },
+  {
+    "par": 12,
+    "crate": "memchr",
+    "svar_cf": "B",
+    "svar_loc": "B",
+    "oenigt": false,
+    "styrka": 0.886,
+    "tyngre": {
+      "namn": "do_packed_search",
+      "cf": 529,
+      "loc": 35
+    },
+    "lattare": {
+      "namn": "is_suffix",
+      "cf": 46,
+      "loc": 4
+    }
+  }
+]
