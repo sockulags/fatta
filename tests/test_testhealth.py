@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fatta.graph import FUNCTION, Graph, Item
-from fatta.testhealth import analyze, internal_symbols, render
+from fatta.testhealth import Churn, analyze, internal_symbols, parse_git_log, render, render_churn
 from fatta.testmap import TestCase, TestMap
 
 
@@ -120,3 +120,51 @@ def test_render_summerar_kategorier() -> None:
     text = render(analyze(tm))
 
     assert "fabricated" in text and "flaggade" in text
+
+
+SEP = chr(1)
+NL = chr(10)
+GITLOG = (
+    SEP + NL.join(["aaa", "x.test.ts", "lib/x.ts", ""])
+    + SEP + NL.join(["bbb", "x.test.ts", ""])
+    + SEP + NL.join(["ccc", "x.test.ts", ""])
+    + SEP + NL.join(["ddd", "x.test.ts", "lib/x.ts", ""])
+)
+
+
+def test_gitlog_parsas_till_filmangder() -> None:
+    commits = parse_git_log(GITLOG)
+
+    assert len(commits) == 4
+    assert commits[1] == {"x.test.ts"}
+
+
+def test_ensamchurn_raknar_lagningar_utan_malandring() -> None:
+    """Två commits rörde bara testet; skapelsen (äldsta) räknas bort ur ensam-churnen."""
+    from unittest.mock import patch
+    from types import SimpleNamespace
+    from fatta.testhealth import measure_churn
+    from pathlib import Path
+
+    tm = make_map([make_test(file="x.test.ts",
+                             targets=({"name": "f", "file": "lib/x.ts", "line": 1},))])
+    fake = SimpleNamespace(returncode=0, stdout=GITLOG)
+    with patch("fatta.testhealth.subprocess.run", return_value=fake):
+        churn = measure_churn(tm, Path("."))
+
+    assert churn["x.test.ts"].total == 4
+    assert churn["x.test.ts"].test_only == 2
+
+
+def test_churnrapporten_korsar_med_fabrikationssignaler() -> None:
+    findings = analyze(make_map([make_test(file="x.test.ts",
+                                           casts=({"line": 1, "text": "as any"},))]))
+    text = render_churn({"x.test.ts": Churn(total=5, test_only=3)}, findings)
+
+    assert "x.test.ts" in text and "fabrikationssignaler" in text
+
+
+def test_lag_churn_rapporteras_inte() -> None:
+    text = render_churn({"x.test.ts": Churn(total=3, test_only=1)}, [])
+
+    assert "Ingen testfil" in text

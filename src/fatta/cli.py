@@ -353,6 +353,10 @@ def cmd_testhealth(args: argparse.Namespace) -> int:
         print("obs: ingen graf hittad — vattenlinjesignalen utelämnas", file=sys.stderr)
     findings = testhealth_mod.analyze(tm, graph)
     print(testhealth_mod.render(findings, args.limit if args.limit else len(findings)))
+    churn = testhealth_mod.measure_churn(tm, args.repo)
+    if churn:
+        print()
+        print(testhealth_mod.render_churn(churn, findings))
     return 0
 
 
@@ -464,6 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
     th.add_argument("--map", type=Path, help=f"testkarta (standard: {DEFAULT_TESTMAP})")
     th.add_argument("--graph", type=Path, help=f"graf för vattenlinjen (standard: {DEFAULT_INDEX})")
     th.add_argument("--limit", type=int, default=25)
+    th.add_argument("--repo", type=Path, default=Path("."), help="git-repo för churn-historiken")
     th.set_defaults(func=cmd_testhealth)
 
     serve = sub.add_parser("serve", help="kör MCP-servern över ett index")

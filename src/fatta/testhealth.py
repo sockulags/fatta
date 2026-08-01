@@ -18,7 +18,9 @@ undantag (partiella fixturer, medveten isolering, avsiktliga copy-kontrakt vid e
 from __future__ import annotations
 
 import re
+import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .graph import Graph
 from .testmap import TestCase, TestMap
@@ -131,4 +133,86 @@ def render(findings: list[Finding], limit: int = 25) -> str:
         lines.append("")
     if len(findings) > limit:
         lines.append(f"… {len(findings) - limit} till. Kör med --limit 0 för alla.")
+    return "\n".join(lines)
+
+
+# -- historiken -----------------------------------------------------------------
+
+
+SEP = chr(1)  # %x01 i git-formatsträngen
+
+
+@dataclass(frozen=True)
+class Churn:
+    total: int
+    """Commits som rört testfilen."""
+    test_only: int
+    """Commits som rört testfilen utan att röra någon av dess produktionsmålfiler.
+
+    Det är den rena underhållskostnaden: testet behövde lagas fast beteendet det
+    påstås skydda inte ändrades."""
+
+
+def parse_git_log(text: str) -> list[set[str]]:
+    """`git log --name-only --pretty=format:%x01%H` → en filmängd per commit."""
+    commits: list[set[str]] = []
+    for block in text.split(SEP):
+        lines = [l.strip() for l in block.splitlines() if l.strip()]
+        if lines:
+            commits.append({l.replace("\\", "/") for l in lines[1:]})
+    return commits
+
+
+def measure_churn(tm: TestMap, repo: Path) -> dict[str, Churn]:
+    """Testfil → churn, ur repots faktiska historik."""
+    result = subprocess.run(
+        ["git", "log", "--name-only", "--pretty=format:%x01%H"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        return {}
+    commits = parse_git_log(result.stdout or "")
+
+    targets_by_file: dict[str, set[str]] = {}
+    for test in tm.tests:
+        bucket = targets_by_file.setdefault(test.file, set())
+        bucket.update(t["file"].replace("\\", "/") for t in test.targets)
+        bucket.update(f.replace("\\", "/") for f in test.file_targets)
+
+    churn: dict[str, Churn] = {}
+    for test_file, targets in targets_by_file.items():
+        touched = [c for c in commits if test_file in c]
+        if not touched:
+            continue
+        # Skapelsecommiten räknas bort: allt är nytt där, inget "lagades".
+        alone = sum(1 for c in touched[:-1] if not (c & targets))
+        churn[test_file] = Churn(total=len(touched), test_only=alone)
+    return churn
+
+
+def render_churn(churn: dict[str, Churn], findings: list[Finding], limit: int = 12) -> str:
+    """Historiksektionen: testfiler som bevisligen kostat underhåll.
+
+    Korsningen är poängen — en fil med hög ensam-churn OCH fabrikationssignaler är den
+    starkaste strykkandidaten: den har kostat lagningar utan att beteendet ändrats, och
+    den spikar tillstånd produktionen inte producerar."""
+    rows = [(f, c) for f, c in churn.items() if c.test_only >= 2]
+    if not rows:
+        return "Ingen testfil har lagats upprepade gånger utan att målen ändrats."
+    flagged_files = {finding.test.file for finding in findings}
+    rows.sort(key=lambda fc: -fc[1].test_only)
+    lines = [
+        "Testfiler lagade utan att produktionsmålen ändrats (ensam-churn minst 2):",
+        "",
+        f"{'ensam':>6}{'totalt':>8}   fil",
+    ]
+    for file, c in rows[:limit]:
+        marker = "  ⚠ även fabrikationssignaler" if file in flagged_files else ""
+        lines.append(f"{c.test_only:>6}{c.total:>8}   {file}{marker}")
+    if len(rows) > limit:
+        lines.append(f"… {len(rows) - limit} till")
     return "\n".join(lines)
