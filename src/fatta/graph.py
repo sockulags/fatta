@@ -74,6 +74,13 @@ class Item:
     """Item-id:n som kontraktet rör vid."""
     owner: tuple[str, ...] = ()
     """Mottagartypen för en metod. Står sällan i signaturen och måste bäras separat."""
+    calls: tuple[str, ...] = ()
+    """Vad kroppen anropar eller bygger.
+
+    I Rust bär signaturen beroendena. I TypeScript, och särskilt i React, gör den inte
+    det — en komponent tar inga parametrar och skapar allt internt. Utan de här kanterna
+    ser sådan kod ut att sakna beroenden helt, vilket är det farligaste möjliga felet:
+    mängden utges för sluten när den inte är det."""
     external: str | None = None
     file: str = ""
     line: int = 0
@@ -161,11 +168,18 @@ class Graph:
 
     # -- slutningen -------------------------------------------------------------
 
-    def surface(self, item_id: str, used: set[str] | None = None) -> set[str]:
+    def surface(
+        self, item_id: str, used: set[str] | None = None, include_calls: bool = False
+    ) -> set[str]:
         """Vad ett items kontrakt rör vid.
 
         Signaturen filtreras aldrig — de typerna måste läsaren se oavsett. Det är typernas
-        *inre* som beskärs till det som används."""
+        *inre* som beskärs till det som används.
+
+        `include_calls` gäller bara den funktion som mäts. Du måste känna kontraktet för
+        det du själv anropar, men inte för det *de* anropar — där räcker deras kontrakt.
+        Det är den regeln som håller slutningen ändlig i stället för att svälla till hela
+        programmet."""
         item = self.items.get(item_id)
         if item is None:
             return set()
@@ -178,7 +192,10 @@ class Graph:
                 if child is not None:
                     out |= set(child.refs)
             return out
-        return set(item.refs) | set(item.owner)
+        surface = set(item.refs) | set(item.owner)
+        if include_calls:
+            surface |= set(item.calls)
+        return surface
 
     def closure(self, root: str, used: set[str] | None = None) -> set[str]:
         """Transitiv kontraktsslutning. Välkända items avbryter vandringen."""
@@ -188,7 +205,7 @@ class Graph:
             return set(cached)
 
         seen: set[str] = set()
-        queue = list(self.surface(root))
+        queue = list(self.surface(root, include_calls=True))
         while queue:
             current = queue.pop()
             if current in seen or current == root:

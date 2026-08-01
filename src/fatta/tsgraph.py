@@ -48,6 +48,7 @@ def parse(data: dict, **graph_args) -> Graph:
             body=raw.get("body") or "",
             members=tuple(raw.get("members") or ()),
             refs=tuple(raw.get("refs") or ()),
+            calls=tuple(raw.get("calls") or ()),
             owner=tuple(raw.get("owner") or ()),
             external=raw.get("external"),
             file=raw.get("file") or "",

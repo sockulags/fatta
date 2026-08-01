@@ -54,23 +54,34 @@ operationer över api- och service-nivån, så alla funktioner med samma namn su
 
 | operation | skiktad kropp | skiktad slutning | enhetlig kropp | enhetlig slutning |
 |---|---|---|---|---|
-| create_list | 176 | 204 | 50 | 14 |
-| add | 281 | 128 | 256 | 14 |
-| complete | 154 | 103 | 122 | 14 |
-| reopen | 69 | 90 | 49 | 14 |
-| tag | 74 | 90 | 51 | 14 |
-| move_under | 268 | 108 | 192 | 14 |
-| tree | 170 | 100 | 59 | 6 |
-| search | 232 | 100 | 158 | 6 |
-| **summa** | **1424** | **923** | **937** | **96** |
+| create_list | 176 | 895 | 50 | 148 |
+| add | 281 | 797 | 256 | 273 |
+| complete | 154 | 425 | 122 | 194 |
+| reopen | 69 | 327 | 49 | 101 |
+| tag | 74 | 340 | 51 | 106 |
+| move_under | 268 | 542 | 192 | 154 |
+| tree | 170 | 452 | 59 | 60 |
+| search | 232 | 511 | 158 | 110 |
+| **summa** | **1424** | **4289** | **937** | **1146** |
 
-Kropparna skiljer 1,5 gånger. **Slutningarna skiljer 9,6 gånger.** Skillnaden sitter alltså
+Kropparna skiljer 1,5 gånger. **Slutningarna skiljer 3,7 gånger.** Skillnaden sitter alltså
 inte i hur mycket kod som skrivits utan i hur mycket annat man måste kunna för att läsa den.
 
-Och den enhetliga slutningen är i praktiken konstant — 14, 14, 14, 14, 14, 6, 6 — eftersom
-varje operation arbetar på samma sorts sak. Det är precis vad enhetlig rekursion förutsäger:
-kostnaden växer inte med operationen. Riktningen håller även med det gamla måttet
-(`--whole-types`), så den är inte en artefakt av den användningsstyrda lagningen.
+### Rättelse (2026-08-01, senare samma dag)
+
+Först rapporterades 9,6 gånger, och att den enhetliga slutningen var konstant över
+operationerna. Bägge byggde på en modell som bara följde beroenden genom **signaturer** och
+struntade i vad kroppen anropar. Den brast uppenbart i TypeScript — en React-komponent tar
+inga parametrar och såg därför ut att sakna beroenden helt — men den var lika fel i Rust,
+bara mindre synligt eftersom Rust-signaturer bär mer.
+
+Med anrop inräknade står riktningen kvar men magnituden mer än halveras, och konstansen
+försvinner: den var en artefakt av att modellen inte såg vad koden gjorde.
+
+En asymmetri att känna till: TypeScript-frontenden löser upp anrop med tsc:s typcheckare,
+medan Rust-frontenden matchar namn mot källtexten eftersom rustdoc-JSON saknar kroppar.
+Namnmatchning överskattar, och troligen mest i den skiktade varianten som har fler distinkta
+namn. Ett par tiondelar av kvoten ovan är förmodligen den effekten snarare än struktur.
 
 ## Varför siffran inte ska övertolkas
 

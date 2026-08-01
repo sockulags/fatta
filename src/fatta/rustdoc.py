@@ -149,6 +149,24 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
     def doc_of(item: dict) -> str:
         return (item.get("docs") or "") if include_docs else ""
 
+    # Vad en kropp anropar syns inte i rustdoc-JSON — där finns inga kroppar. Namnen
+    # matchas därför mot källtexten, vilket är grövre än tsc:s upplösning: två items med
+    # samma namn går inte att skilja åt. Överskattning är det säkrare felet, men
+    # asymmetrin mot TypeScript-frontenden är verklig och värd att känna till.
+    by_name: dict[str, list[str]] = {}
+    for candidate, raw in index.items():
+        name = raw.get("name")
+        if name and origin(candidate) is None:
+            by_name.setdefault(name, []).append(candidate)
+
+    def calls_in(body: str, own_id: str) -> tuple[str, ...]:
+        found: set[str] = set()
+        for word in set(re.findall(r"\b[A-Za-z_]\w*\b", body)):
+            for candidate in by_name.get(word, ()):
+                if candidate != own_id:
+                    found.add(candidate)
+        return tuple(sorted(found))
+
     items: dict[str, Item] = {}
     for item_id, raw in index.items():
         kind = kind_of(raw)
@@ -171,6 +189,7 @@ def load(doc: dict, src_root: Path, include_docs: bool = True, **graph_args) -> 
                 contract=f"{doc_of(raw)}\n{signature_only(src)}".strip(),
                 body=src,
                 refs=tuple(sorted(type_refs(raw["inner"]["function"].get("sig")))),
+                calls=calls_in(src, item_id),
                 owner=tuple(sorted(owners.get(item_id, set()))),
                 **common,
             )

@@ -78,7 +78,22 @@ const DECLARATION = new Set([
   ts.SyntaxKind.EnumMember,
 ]);
 
-/** Deklarationen som ett typuttryck syftar på, aliaset upplöst. */
+// Funktionsuttryck bundna till en modulkonstant är funktioner som alla andra.
+const CALLABLE = new Set([
+  ts.SyntaxKind.ArrowFunction,
+  ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.VariableDeclaration,
+]);
+
+/** En modulkonstant räknas som beroende; en lokal variabel i en kropp gör det inte. */
+function isModuleConstant(decl) {
+  if (!ts.isVariableDeclaration(decl)) return false;
+  const statement = decl.parent && decl.parent.parent;
+  return !!statement && ts.isVariableStatement(statement) &&
+    ts.isSourceFile(statement.parent);
+}
+
+/** Deklarationen som ett uttryck syftar på, aliaset upplöst. */
 function targetOf(node) {
   let symbol = checker.getSymbolAtLocation(node);
   if (!symbol) return null;
@@ -90,7 +105,33 @@ function targetOf(node) {
     }
   }
   const declarations = symbol.declarations || [];
-  return declarations.find((d) => DECLARATION.has(d.kind)) || null;
+  const direct = declarations.find((d) => DECLARATION.has(d.kind));
+  if (direct) return direct;
+  const constant = declarations.find(isModuleConstant);
+  if (constant && constant.initializer &&
+      (ts.isArrowFunction(constant.initializer) ||
+       ts.isFunctionExpression(constant.initializer))) {
+    return constant.initializer;
+  }
+  return constant || null;
+}
+
+/** Vad en kropp anropar, bygger eller renderar.
+ *
+ * JSX-taggar räknas med: `<BlockView />` är ett beroende lika mycket som ett anrop, och
+ * i React är det den vanligaste formen. */
+function callsIn(node, into) {
+  if (!node.body) return;
+  const self = node;
+  const visit = (child) => {
+    if (ts.isIdentifier(child) || ts.isPropertyAccessExpression(child)) {
+      const name = ts.isPropertyAccessExpression(child) ? child.name : child;
+      const found = targetOf(name);
+      if (found && found !== self) into.add(found);
+    }
+    ts.forEachChild(child, visit);
+  };
+  ts.forEachChild(node.body, visit);
 }
 
 /** Alla deklarationer ett typuttryck rör vid. */
@@ -140,7 +181,9 @@ function isFunctionLike(node) {
   return (
     ts.isFunctionDeclaration(node) ||
     ts.isMethodDeclaration(node) ||
-    ts.isMethodSignature(node)
+    ts.isMethodSignature(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node)
   );
 }
 
@@ -186,11 +229,14 @@ function record(node, owner) {
   if (isFunctionLike(node)) {
     for (const parameter of node.parameters || []) refsIn(parameter.type, refs);
     refsIn(node.type, refs);
+    const calls = new Set();
+    if (!external) callsIn(node, calls);
     Object.assign(base, {
       kind: "function",
       contract: [doc, signatureText(node)].filter(Boolean).join("\n"),
       body: external ? "" : node.getText(),
       refs: [...refs].map((d) => record(d)),
+      calls: [...calls].map((d) => record(d)),
       owner: owner ? [record(owner)] : [],
       members: [],
     });

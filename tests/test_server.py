@@ -148,3 +148,46 @@ def test_trasig_rad_kraschar_inte_servern() -> None:
     server.serve(tiny_graph(), stdin=stdin, stdout=out)
 
     assert json.loads(out.getvalue())["id"] == 4
+
+
+def test_kroppens_anrop_hor_till_mangden() -> None:
+    """En React-komponent tar inga parametrar och bygger allt internt. Utan kroppens
+    kanter ser sådan kod ut att sakna beroenden — det farligaste möjliga felet."""
+    graph = tiny_graph()
+    graph.items["f"] = Item(
+        id="f",
+        name="handle",
+        kind=FUNCTION,
+        contract="fn handle()",
+        body="fn handle() { helper() }",
+        calls=("h",),
+        file="src/lib.rs",
+        line=3,
+    )
+    graph.items["h"] = Item(
+        id="h", name="helper", kind=FUNCTION, contract="fn helper() -> u32", body="{ 1 }"
+    )
+
+    payload = call(graph, "what_must_i_know", {"symbol": "handle"})
+
+    assert "helper" in [e["name"] for e in payload["must_know"]]
+
+
+def test_anropens_anrop_foljs_inte() -> None:
+    """Du måste känna kontraktet för det du själv anropar, men inte för det *de*
+    anropar — annars sväller slutningen till hela programmet."""
+    graph = tiny_graph()
+    graph.items["f"] = Item(
+        id="f", name="handle", kind=FUNCTION, contract="fn handle()",
+        body="fn handle() { helper() }", calls=("h",),
+    )
+    graph.items["h"] = Item(
+        id="h", name="helper", kind=FUNCTION, contract="fn helper()",
+        body="{ deep() }", calls=("d",),
+    )
+    graph.items["d"] = Item(id="d", name="deep", kind=FUNCTION, contract="fn deep()")
+
+    names = [e["name"] for e in call(graph, "what_must_i_know", {"symbol": "handle"})["must_know"]]
+
+    assert "helper" in names
+    assert "deep" not in names
